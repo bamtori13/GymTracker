@@ -37,7 +37,7 @@ import com.gymtracker.app.ui.calendar.CalendarScreen
 import com.gymtracker.app.ui.routine.RoutineViewModel
 import com.gymtracker.app.ui.settings.SettingsScreen
 import com.gymtracker.app.ui.stats.StatsScreen
-import com.gymtracker.app.ui.theme.AppTypography
+import com.gymtracker.app.ui.theme.GymTrackerTheme
 import com.gymtracker.app.ui.today.TodayScreen
 import com.gymtracker.app.ui.today.TodayViewModel
 
@@ -52,7 +52,8 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch { repository.seedDefaultExercisesIfNeeded() }
 
         setContent {
-            MaterialTheme(typography = AppTypography) {
+            GymTrackerTheme {
+            //MaterialTheme(typography = AppTypography) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     GymTrackerApp(factory = factory)
                 }
