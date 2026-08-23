@@ -2,8 +2,10 @@ package com.gymtracker.app.ui.today
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
@@ -14,7 +16,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.gymtracker.app.data.local.DefaultExercises
 import com.gymtracker.app.data.local.entity.Exercise
+import com.gymtracker.app.data.local.entity.ExerciseInputType
 import com.gymtracker.app.data.local.entity.ExerciseSet
 import com.gymtracker.app.data.local.entity.WorkoutRoutine
 import com.gymtracker.app.ui.routine.RoutineViewModel
@@ -283,6 +287,9 @@ private fun SetRow(
     }
 }
 
+/** 팝업이 지금 어느 화면을 보여주고 있는지. 팝업(AlertDialog) 자체는 하나만 떠 있고 내용만 바뀐다. */
+private enum class AddExerciseStep { MAIN, ADD_EXERCISE, CREATE_ROUTINE }
+
 @Composable
 private fun AddExercisePickerDialog(
     routineViewModel: RoutineViewModel,
@@ -292,130 +299,322 @@ private fun AddExercisePickerDialog(
 ) {
     val exercises by routineViewModel.allExercises.collectAsState()
     val routines by routineViewModel.routines.collectAsState()
-    var tab by remember { mutableStateOf(0) }
-    var showQuickAdd by remember { mutableStateOf(false) }
+    var step by remember { mutableStateOf(AddExerciseStep.MAIN) }
+    var mainTab by remember { mutableStateOf(0) } // 0: 운동, 1: 루틴
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("운동추가") },
-        text = {
-            Column {
-                TabRow(selectedTabIndex = tab) {
-                    Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("운동") })
-                    Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("루틴") })
+        title = {
+            Text(
+                when (step) {
+                    AddExerciseStep.MAIN -> "운동추가"
+                    AddExerciseStep.ADD_EXERCISE -> "새 운동 추가"
+                    AddExerciseStep.CREATE_ROUTINE -> "새 루틴 만들기"
                 }
-                Spacer(Modifier.height(8.dp))
-                Box(Modifier.heightIn(max = 320.dp)) {
-                    if (tab == 0) {
-                        ExercisePickList(
-                            exercises = exercises,
-                            onPick = onPickExercise,
-                            onCreateNew = { showQuickAdd = true }
-                        )
-                    } else {
-                        RoutinePickList(routines = routines, onPick = onPickRoutine)
-                    }
+            )
+        },
+        text = {
+            Box(Modifier.heightIn(max = 420.dp)) {
+                when (step) {
+                    AddExerciseStep.MAIN -> MainPickerContent(
+                        selectedTab = mainTab,
+                        onTabChange = { mainTab = it },
+                        exercises = exercises,
+                        routines = routines,
+                        onPickExercise = onPickExercise,
+                        onPickRoutine = onPickRoutine,
+                        onAddExerciseClick = { step = AddExerciseStep.ADD_EXERCISE },
+                        onCreateRoutineClick = { step = AddExerciseStep.CREATE_ROUTINE }
+                    )
+                    AddExerciseStep.ADD_EXERCISE -> AddExerciseFormContent(
+                        onConfirm = { name, bodyPart, inputType ->
+                            routineViewModel.addExercise(name, bodyPart, inputType) { id ->
+                                onPickExercise(id)
+                            }
+                        }
+                    )
+                    AddExerciseStep.CREATE_ROUTINE -> CreateRoutineFormContent(
+                        allExercises = exercises,
+                        onConfirm = { name, exerciseIds ->
+                            routineViewModel.createRoutine(name, exerciseIds) { id ->
+                                onPickRoutine(id)
+                            }
+                        }
+                    )
                 }
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("닫기") }
+            if (step != AddExerciseStep.MAIN) {
+                TextButton(onClick = { step = AddExerciseStep.MAIN }) { Text("뒤로") }
+            } else {
+                TextButton(onClick = onDismiss) { Text("닫기") }
+            }
         }
     )
+}
 
-    if (showQuickAdd) {
-        QuickAddExerciseDialog(
-            onDismiss = { showQuickAdd = false },
-            onCreate = { name, sets, minReps, maxReps, increment, startWeight ->
-                routineViewModel.quickAddExercise(name, sets, minReps, maxReps, increment, startWeight) { id ->
-                    onPickExercise(id)
-                }
-                showQuickAdd = false
-            }
-        )
+/** 탭 메인화면: 운동 | 루틴 탭 + 선택한 탭에 따른 세부 목록. */
+@Composable
+private fun MainPickerContent(
+    selectedTab: Int,
+    onTabChange: (Int) -> Unit,
+    exercises: List<Exercise>,
+    routines: List<WorkoutRoutine>,
+    onPickExercise: (Long) -> Unit,
+    onPickRoutine: (Long) -> Unit,
+    onAddExerciseClick: () -> Unit,
+    onCreateRoutineClick: () -> Unit
+) {
+    Column {
+        TabRow(selectedTabIndex = selectedTab) {
+            Tab(selected = selectedTab == 0, onClick = { onTabChange(0) }, text = { Text("운동") })
+            Tab(selected = selectedTab == 1, onClick = { onTabChange(1) }, text = { Text("루틴") })
+        }
+        Spacer(Modifier.height(8.dp))
+        if (selectedTab == 0) {
+            ExerciseListContent(
+                exercises = exercises,
+                onPick = onPickExercise,
+                onCreateNew = onAddExerciseClick
+            )
+        } else {
+            RoutineListContent(
+                routines = routines,
+                onPick = onPickRoutine,
+                onCreateNew = onCreateRoutineClick
+            )
+        }
     }
 }
 
+/** 운동 탭 세부 목록: 검색 + 부위 칩 + 새 운동 추가 + 목록(이름/부위/입력형태). */
 @Composable
-private fun ExercisePickList(
+private fun ExerciseListContent(
     exercises: List<Exercise>,
     onPick: (Long) -> Unit,
     onCreateNew: () -> Unit
 ) {
-    LazyColumn {
-        items(exercises, key = { it.id }) { ex ->
-            ListItem(
-                headlineContent = { Text(ex.name) },
-                supportingContent = { Text("${ex.targetSets}세트 · ${ex.minReps}~${ex.maxReps}회") },
-                modifier = Modifier.clickable { onPick(ex.id) }
-            )
+    var query by remember { mutableStateOf("") }
+    var selectedBodyPart by remember { mutableStateOf("전체") }
+    val bodyParts = remember(exercises) { listOf("전체") + exercises.map { it.bodyPart }.distinct() }
+
+    val filtered = exercises.filter { ex ->
+        (selectedBodyPart == "전체" || ex.bodyPart == selectedBodyPart) &&
+            (query.isBlank() || ex.name.contains(query, ignoreCase = true))
+    }
+
+    Column {
+        OutlinedTextField(
+            value = query,
+            onValueChange = { query = it },
+            label = { Text("검색") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(Modifier.height(8.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            bodyParts.forEach { part ->
+                FilterChip(
+                    selected = selectedBodyPart == part,
+                    onClick = { selectedBodyPart = part },
+                    label = { Text(part) }
+                )
+            }
         }
-        item {
-            TextButton(onClick = onCreateNew, modifier = Modifier.fillMaxWidth()) {
-                Text("+ 새 운동 만들기")
+        Spacer(Modifier.height(8.dp))
+        TextButton(onClick = onCreateNew, modifier = Modifier.fillMaxWidth()) {
+            Text("+ 새 운동 추가")
+        }
+        LazyColumn {
+            items(filtered, key = { it.id }) { ex ->
+                ListItem(
+                    headlineContent = { Text(ex.name) },
+                    supportingContent = {
+                        val inputLabel = if (ex.inputType == ExerciseInputType.TIME) "시간" else "중량/횟수"
+                        Text("${ex.bodyPart} · $inputLabel")
+                    },
+                    modifier = Modifier.clickable { onPick(ex.id) }
+                )
             }
         }
     }
 }
 
+/** 루틴 탭 세부 목록: 검색 + 새 루틴 만들기 + 루틴 목록. */
 @Composable
-private fun RoutinePickList(routines: List<WorkoutRoutine>, onPick: (Long) -> Unit) {
-    LazyColumn {
-        items(routines, key = { it.id }) { routine ->
-            ListItem(
-                headlineContent = { Text(routine.name) },
-                modifier = Modifier.clickable { onPick(routine.id) }
-            )
+private fun RoutineListContent(
+    routines: List<WorkoutRoutine>,
+    onPick: (Long) -> Unit,
+    onCreateNew: () -> Unit
+) {
+    var query by remember { mutableStateOf("") }
+    val filtered = routines.filter { query.isBlank() || it.name.contains(query, ignoreCase = true) }
+
+    Column {
+        OutlinedTextField(
+            value = query,
+            onValueChange = { query = it },
+            label = { Text("검색") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(Modifier.height(8.dp))
+        TextButton(onClick = onCreateNew, modifier = Modifier.fillMaxWidth()) {
+            Text("+ 새 루틴 만들기")
+        }
+        LazyColumn {
+            items(filtered, key = { it.id }) { routine ->
+                ListItem(
+                    headlineContent = { Text(routine.name) },
+                    modifier = Modifier.clickable { onPick(routine.id) }
+                )
+            }
         }
     }
 }
 
+/** 운동 추가 화면: 운동명 / 부위 선택 / 입력방법 선택(중량x횟수 / 시간). */
 @Composable
-private fun QuickAddExerciseDialog(
-    onDismiss: () -> Unit,
-    onCreate: (name: String, sets: Int, minReps: Int, maxReps: Int, increment: Double, startWeight: Double) -> Unit
+private fun AddExerciseFormContent(
+    onConfirm: (name: String, bodyPart: String, inputType: ExerciseInputType) -> Unit
 ) {
     var name by remember { mutableStateOf("") }
-    var sets by remember { mutableStateOf("4") }
-    var minReps by remember { mutableStateOf("8") }
-    var maxReps by remember { mutableStateOf("10") }
-    var increment by remember { mutableStateOf("2.5") }
-    var startWeight by remember { mutableStateOf("20") }
+    var bodyPart by remember { mutableStateOf(DefaultExercises.BODY_PARTS.first()) }
+    var inputType by remember { mutableStateOf(ExerciseInputType.WEIGHT_REPS) }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("새 운동 만들기") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("운동 이름") }, singleLine = true)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(value = sets, onValueChange = { sets = it }, label = { Text("세트 수") }, modifier = Modifier.weight(1f))
-                    OutlinedTextField(value = startWeight, onValueChange = { startWeight = it }, label = { Text("시작 중량(kg)") }, modifier = Modifier.weight(1f))
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(value = minReps, onValueChange = { minReps = it }, label = { Text("최소 반복") }, modifier = Modifier.weight(1f))
-                    OutlinedTextField(value = maxReps, onValueChange = { maxReps = it }, label = { Text("최대 반복") }, modifier = Modifier.weight(1f))
-                }
-                OutlinedTextField(value = increment, onValueChange = { increment = it }, label = { Text("증량 단위(kg)") }, singleLine = true)
+    Column {
+        OutlinedTextField(
+            value = name,
+            onValueChange = { name = it },
+            label = { Text("운동명") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(Modifier.height(12.dp))
+        Text("부위", style = MaterialTheme.typography.labelLarge)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            DefaultExercises.BODY_PARTS.forEach { part ->
+                FilterChip(
+                    selected = bodyPart == part,
+                    onClick = { bodyPart = part },
+                    label = { Text(part) }
+                )
             }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    onCreate(
-                        name,
-                        sets.toIntOrNull() ?: 4,
-                        minReps.toIntOrNull() ?: 8,
-                        maxReps.toIntOrNull() ?: 10,
-                        increment.toDoubleOrNull() ?: 2.5,
-                        startWeight.toDoubleOrNull() ?: 20.0
+        }
+        Spacer(Modifier.height(12.dp))
+        Text("입력방법", style = MaterialTheme.typography.labelLarge)
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            FilterChip(
+                selected = inputType == ExerciseInputType.WEIGHT_REPS,
+                onClick = { inputType = ExerciseInputType.WEIGHT_REPS },
+                label = { Text("중량 x 횟수") }
+            )
+            FilterChip(
+                selected = inputType == ExerciseInputType.TIME,
+                onClick = { inputType = ExerciseInputType.TIME },
+                label = { Text("시간") }
+            )
+        }
+        Spacer(Modifier.height(16.dp))
+        Button(
+            onClick = { onConfirm(name.trim(), bodyPart, inputType) },
+            enabled = name.isNotBlank(),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("추가")
+        }
+    }
+}
+
+/** 새 루틴 만들기 화면: 루틴이름 / 운동검색 / 부위선택 / 체크박스 운동목록. */
+@Composable
+private fun CreateRoutineFormContent(
+    allExercises: List<Exercise>,
+    onConfirm: (name: String, exerciseIds: List<Long>) -> Unit
+) {
+    var routineName by remember { mutableStateOf("") }
+    var query by remember { mutableStateOf("") }
+    var selectedBodyPart by remember { mutableStateOf("전체") }
+    val bodyParts = remember(allExercises) { listOf("전체") + allExercises.map { it.bodyPart }.distinct() }
+    val checked = remember { mutableStateListOf<Long>() }
+
+    val filtered = allExercises.filter { ex ->
+        (selectedBodyPart == "전체" || ex.bodyPart == selectedBodyPart) &&
+            (query.isBlank() || ex.name.contains(query, ignoreCase = true))
+    }
+
+    Column {
+        OutlinedTextField(
+            value = routineName,
+            onValueChange = { routineName = it },
+            label = { Text("루틴이름") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(Modifier.height(8.dp))
+        OutlinedTextField(
+            value = query,
+            onValueChange = { query = it },
+            label = { Text("운동검색") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(Modifier.height(8.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            bodyParts.forEach { part ->
+                FilterChip(
+                    selected = selectedBodyPart == part,
+                    onClick = { selectedBodyPart = part },
+                    label = { Text(part) }
+                )
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        LazyColumn(modifier = Modifier.heightIn(max = 220.dp)) {
+            items(filtered, key = { it.id }) { ex ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            if (checked.contains(ex.id)) checked.remove(ex.id) else checked.add(ex.id)
+                        },
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(
+                        checked = checked.contains(ex.id),
+                        onCheckedChange = {
+                            if (it) checked.add(ex.id) else checked.remove(ex.id)
+                        }
                     )
-                },
-                enabled = name.isNotBlank()
-            ) { Text("추가") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("취소") } }
-    )
+                    Text("${ex.name} (${ex.bodyPart})")
+                }
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+        Button(
+            onClick = { onConfirm(routineName.trim(), checked.toList()) },
+            enabled = routineName.isNotBlank() && checked.isNotEmpty(),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("만들기 (${checked.size}개 운동)")
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

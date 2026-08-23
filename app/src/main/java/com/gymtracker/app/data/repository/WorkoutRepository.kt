@@ -1,48 +1,56 @@
 package com.gymtracker.app.data.repository
 
 import com.gymtracker.app.data.local.AppDatabase
+import com.gymtracker.app.data.local.DefaultExercises
 import com.gymtracker.app.data.local.entity.Exercise
 import com.gymtracker.app.data.local.entity.ExerciseSet
+import com.gymtracker.app.data.local.entity.RoutineExercise
 import com.gymtracker.app.data.local.entity.SessionExercise
 import com.gymtracker.app.data.local.entity.WorkoutRoutine
 import com.gymtracker.app.data.local.entity.WorkoutSession
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 
-/**
- * ViewModel은 DAO를 직접 알지 못하고 이 Repository만 사용한다.
- * 향후 원격 백업/동기화(예: Google Drive)를 추가할 때 이 계층만 확장하면 된다.
- */
 class WorkoutRepository(private val db: AppDatabase) {
 
-    // --- Routine (운동 템플릿 묶음) ---
-    fun observeRoutines(): Flow<List<WorkoutRoutine>> = db.routineDao().observeAll()
+    /** 최초 실행 시 exercise 테이블이 비어 있으면 부위별 기본 목록을 한 번 넣어준다. */
+    suspend fun seedDefaultExercisesIfNeeded() {
+        if (db.exerciseDao().count() == 0) {
+            db.exerciseDao().insertAll(DefaultExercises.ALL)
+        }
+    }
 
-    suspend fun createRoutine(name: String, sortOrder: Int = 0): Long =
-        db.routineDao().insert(WorkoutRoutine(name = name, sortOrder = sortOrder))
+    // --- Routine ---
+    fun observeRoutines(): Flow<List<WorkoutRoutine>> = db.routineDao().observeAll()
 
     suspend fun getRoutine(id: Long): WorkoutRoutine? = db.routineDao().getById(id)
 
-    /** Today 화면에서 "새 운동 만들기"로 빠르게 추가할 때 붙여둘 기본 루틴. 없으면 생성한다. */
-    suspend fun getOrCreateDefaultRoutine(): Long {
-        val existing = db.routineDao().observeAll().first().find { it.name == DEFAULT_ROUTINE_NAME }
-        return existing?.id ?: db.routineDao().insert(WorkoutRoutine(name = DEFAULT_ROUTINE_NAME, sortOrder = -1))
+    /** 루틴이름 + 고른 운동 id 목록으로 루틴을 한 번에 만든다 ("새 루틴 만들기" 화면 확인 버튼). */
+    suspend fun createRoutine(name: String, exerciseIds: List<Long>): Long {
+        val routineId = db.routineDao().insert(WorkoutRoutine(name = name))
+        val entries = exerciseIds.mapIndexed { index, exerciseId ->
+            RoutineExercise(routineId = routineId, exerciseId = exerciseId, sortOrder = index)
+        }
+        db.routineExerciseDao().insertAll(entries)
+        return routineId
     }
 
-    // --- Exercise (운동 카탈로그) ---
-    fun observeExercises(routineId: Long): Flow<List<Exercise>> =
-        db.exerciseDao().observeByRoutine(routineId)
+    fun observeExercisesForRoutine(routineId: Long): Flow<List<Exercise>> =
+        db.routineExerciseDao().observeExercisesForRoutine(routineId)
 
+    // --- Exercise (전역 카탈로그) ---
     fun observeAllExercises(): Flow<List<Exercise>> = db.exerciseDao().observeAll()
 
-    suspend fun getExercisesOnce(routineId: Long): List<Exercise> =
-        db.exerciseDao().observeByRoutine(routineId).first()
-
-    suspend fun addExercise(exercise: Exercise): Long = db.exerciseDao().insert(exercise)
-
-    suspend fun updateExercise(exercise: Exercise) = db.exerciseDao().update(exercise)
-
     suspend fun getExercise(id: Long): Exercise? = db.exerciseDao().getById(id)
+
+    /** "+새 운동 추가" 화면 확인 버튼. */
+    suspend fun addExercise(
+        name: String,
+        bodyPart: String,
+        inputType: com.gymtracker.app.data.local.entity.ExerciseInputType
+    ): Long = db.exerciseDao().insert(
+        Exercise(name = name, bodyPart = bodyPart, inputType = inputType, isCustom = true)
+    )
 
     // --- Session (날짜 단위) ---
     suspend fun getOrCreateSessionForDate(dateEpochDay: Long): Long {
@@ -50,13 +58,10 @@ class WorkoutRepository(private val db: AppDatabase) {
         return db.sessionDao().insert(WorkoutSession(dateEpochDay = dateEpochDay))
     }
 
-    suspend fun getSessionForDateOrNull(dateEpochDay: Long): WorkoutSession? =
-        db.sessionDao().getByDate(dateEpochDay)
-
     suspend fun getLastSessionWithExerciseBefore(exerciseId: Long, beforeEpochDay: Long): WorkoutSession? =
         db.sessionDao().getLastSessionWithExerciseBefore(exerciseId, beforeEpochDay)
 
-    // --- SessionExercise (그날 화면에 보이는 운동 카드) ---
+    // --- SessionExercise ---
     fun observeSessionExercises(sessionId: Long): Flow<List<SessionExercise>> =
         db.sessionExerciseDao().observeForSession(sessionId)
 
@@ -66,9 +71,8 @@ class WorkoutRepository(private val db: AppDatabase) {
         db.sessionExerciseDao().insert(SessionExercise(sessionId = sessionId, exerciseId = exerciseId, sortOrder = order))
     }
 
-    /** 루틴을 통째로 추가: 루틴에 속한 모든 운동을 오늘 세션에 (중복 없이) 넣는다. */
     suspend fun addRoutineToSession(sessionId: Long, routineId: Long) {
-        val exercises = db.exerciseDao().observeByRoutine(routineId).first()
+        val exercises = db.routineExerciseDao().observeExercisesForRoutine(routineId).first()
         exercises.forEach { addExerciseToSession(sessionId, it.id) }
     }
 
@@ -78,9 +82,6 @@ class WorkoutRepository(private val db: AppDatabase) {
         db.sessionExerciseDao().update(entry.copy(memo = memo))
 
     // --- Sets ---
-    fun observeSets(sessionId: Long, exerciseId: Long): Flow<List<ExerciseSet>> =
-        db.exerciseSetDao().observeForExerciseInSession(sessionId, exerciseId)
-
     suspend fun getSetsForExerciseInSession(exerciseId: Long, sessionId: Long): List<ExerciseSet> =
         db.exerciseSetDao().getSetsForExerciseInSession(exerciseId, sessionId)
 
@@ -92,8 +93,4 @@ class WorkoutRepository(private val db: AppDatabase) {
 
     suspend fun getAllSetsForSession(sessionId: Long): List<ExerciseSet> =
         db.exerciseSetDao().getAllForSession(sessionId)
-
-    companion object {
-        const val DEFAULT_ROUTINE_NAME = "기본 운동"
-    }
 }

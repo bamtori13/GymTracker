@@ -8,11 +8,13 @@ import androidx.room.TypeConverters
 import com.gymtracker.app.data.local.dao.ExerciseDao
 import com.gymtracker.app.data.local.dao.ExerciseSetDao
 import com.gymtracker.app.data.local.dao.RoutineDao
+import com.gymtracker.app.data.local.dao.RoutineExerciseDao
 import com.gymtracker.app.data.local.dao.SessionDao
 import com.gymtracker.app.data.local.dao.SessionExerciseDao
 import com.gymtracker.app.data.local.entity.Exercise
 import com.gymtracker.app.data.local.entity.ExerciseSet
 import com.gymtracker.app.data.local.entity.PersonalRecord
+import com.gymtracker.app.data.local.entity.RoutineExercise
 import com.gymtracker.app.data.local.entity.SessionExercise
 import com.gymtracker.app.data.local.entity.WorkoutRoutine
 import com.gymtracker.app.data.local.entity.WorkoutSession
@@ -24,15 +26,17 @@ import com.gymtracker.app.data.local.entity.WorkoutSession
         WorkoutSession::class,
         SessionExercise::class,
         ExerciseSet::class,
-        PersonalRecord::class
+        PersonalRecord::class,
+        RoutineExercise::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun routineDao(): RoutineDao
+    abstract fun routineExerciseDao(): RoutineExerciseDao
     abstract fun exerciseDao(): ExerciseDao
     abstract fun sessionDao(): SessionDao
     abstract fun sessionExerciseDao(): SessionExerciseDao
