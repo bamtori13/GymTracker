@@ -52,6 +52,16 @@ class WorkoutRepository(private val db: AppDatabase) {
         Exercise(name = name, bodyPart = bodyPart, inputType = inputType, isCustom = true)
     )
 
+    suspend fun updateExercise(exercise: Exercise, name: String, bodyPart: String, inputType: com.gymtracker.app.data.local.entity.ExerciseInputType) =
+        db.exerciseDao().update(exercise.copy(name = name, bodyPart = bodyPart, inputType = inputType))
+
+    suspend fun deleteExercise(exercise: Exercise) = db.exerciseDao().delete(exercise)
+
+    suspend fun renameRoutine(routine: WorkoutRoutine, newName: String) =
+        db.routineDao().update(routine.copy(name = newName))
+
+    suspend fun deleteRoutine(routine: WorkoutRoutine) = db.routineDao().delete(routine)
+
     // --- Session (날짜 단위) ---
     suspend fun getOrCreateSessionForDate(dateEpochDay: Long): Long {
         db.sessionDao().getByDate(dateEpochDay)?.let { return it.id }
@@ -90,6 +100,8 @@ class WorkoutRepository(private val db: AppDatabase) {
     suspend fun deleteSet(set: ExerciseSet) = db.exerciseSetDao().delete(set)
 
     suspend fun getMaxWeightEver(exerciseId: Long): Double? = db.exerciseSetDao().getMaxWeightEver(exerciseId)
+
+    suspend fun getMaxRepsEver(exerciseId: Long): Int? = db.exerciseSetDao().getMaxRepsEver(exerciseId)
 
     suspend fun getAllSetsForSession(sessionId: Long): List<ExerciseSet> =
         db.exerciseSetDao().getAllForSession(sessionId)

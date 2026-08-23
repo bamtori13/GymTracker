@@ -3,6 +3,7 @@ package com.gymtracker.app.ui.today
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gymtracker.app.data.local.entity.Exercise
+import com.gymtracker.app.data.local.entity.ExerciseInputType
 import com.gymtracker.app.data.local.entity.ExerciseSet
 import com.gymtracker.app.data.local.entity.SessionExercise
 import com.gymtracker.app.data.repository.WorkoutRepository
@@ -18,15 +19,15 @@ data class ExerciseCardUiState(
     val sessionExercise: SessionExercise,
     val exercise: Exercise,
     val sets: List<ExerciseSet>,
-    /** 오늘계획총량: 목표 중량 x (최소~최대 반복 평균) x 목표 세트 수. */
+    /** 오늘계획총량: 체크 여부와 상관없이 지금 이 화면에 "입력해 둔" 모든 세트의 합계. */
     val planTotal: Double,
-    /** 오늘수행총량: 오늘 완료 표시된 세트들의 중량x횟수 합. */
+    /** 오늘수행총량: 완료(✓) 체크된 세트만의 합계. */
     val todayTotal: Double,
-    /** 직전수행총량: 이 운동이 포함된 가장 최근 이전 날짜 세션의 중량x횟수 합. */
+    /** 직전수행총량: 이 운동이 포함된 가장 최근 이전 날짜 세션의 완료된 세트 합계. */
     val previousTotal: Double,
-    /** PR: 이 운동의 역대 최고 중량(완료된 세트 기준). 기록 없으면 null. */
-    val prWeight: Double?,
-    val isExpanded: Boolean = true
+    /** PR: WEIGHT_REPS면 역대 최고 중량, TIME이면 역대 최장 시간(초). 기록 없으면 null. */
+    val prValue: Double?,
+    val isExpanded: Boolean = false
 )
 
 data class TodayUiState(
@@ -44,6 +45,7 @@ class TodayViewModel(
     val uiState: StateFlow<TodayUiState> = _uiState.asStateFlow()
 
     // 펼침/접힘은 화면 상태일 뿐 DB에 저장하지 않는다. sessionExerciseId -> expanded
+    // 기본값은 "접힘"(false) — 오늘 화면에 추가된 운동은 처음엔 접혀서 보인다.
     private val expandedState = mutableMapOf<Long, Boolean>()
 
     init {
@@ -64,7 +66,7 @@ class TodayViewModel(
     fun goToToday() = loadDate(LocalDate.now())
 
     fun toggleExpand(sessionExerciseId: Long) {
-        val current = expandedState[sessionExerciseId] ?: true
+        val current = expandedState[sessionExerciseId] ?: false
         expandedState[sessionExerciseId] = !current
         _uiState.value = _uiState.value.copy(
             cards = _uiState.value.cards.map {
@@ -106,9 +108,10 @@ class TodayViewModel(
     /** +세트추가: 다음 세트 번호로, 직전 세트(또는 지난 기록/목표)를 기본값 삼아 빈 세트를 만든다. */
     fun addSet(card: ExerciseCardUiState) {
         val sessionId = _uiState.value.sessionId ?: return
+        val isTime = card.exercise.inputType == ExerciseInputType.TIME
         val nextNumber = (card.sets.maxOfOrNull { it.setNumber } ?: 0) + 1
         val lastSet = card.sets.lastOrNull()
-        val defaultWeight = lastSet?.weight ?: card.exercise.currentTargetWeight
+        val defaultWeight = if (isTime) 0.0 else (lastSet?.weight ?: card.exercise.currentTargetWeight)
         val defaultReps = lastSet?.reps ?: card.exercise.minReps
         viewModelScope.launch {
             repository.saveSet(
@@ -153,22 +156,30 @@ class TodayViewModel(
             return
         }
         val entries = repository.observeSessionExercises(sessionId).first()
-        val cards = entries.map { entry ->
-            val exercise = repository.getExercise(entry.exerciseId)
-                ?: return@map null
+        val cards = entries.mapNotNull { entry ->
+            val exercise = repository.getExercise(entry.exerciseId) ?: return@mapNotNull null
             val sets = repository.getSetsForExerciseInSession(exercise.id, sessionId)
-            val todayTotal = sets.filter { it.isCompleted }.sumOf { it.weight * it.reps }
-            val avgReps = (exercise.minReps + exercise.maxReps) / 2.0
-            val planTotal = exercise.currentTargetWeight * avgReps * exercise.targetSets
+            val isTime = exercise.inputType == ExerciseInputType.TIME
+
+            fun valueOf(s: ExerciseSet): Double = if (isTime) s.reps.toDouble() else s.weight * s.reps
+
+            // 체크 여부와 상관없이, 지금 입력해 둔 모든 세트 값의 합 = "오늘계획총량".
+            val planTotal = sets.sumOf(::valueOf)
+            // 완료 체크된 세트만 = "오늘수행총량".
+            val todayTotal = sets.filter { it.isCompleted }.sumOf(::valueOf)
 
             val prevSession = repository.getLastSessionWithExerciseBefore(exercise.id, date.toEpochDay())
             val previousTotal = if (prevSession != null) {
                 repository.getSetsForExerciseInSession(exercise.id, prevSession.id)
                     .filter { it.isCompleted }
-                    .sumOf { it.weight * it.reps }
+                    .sumOf(::valueOf)
             } else 0.0
 
-            val prWeight = repository.getMaxWeightEver(exercise.id)
+            val prValue = if (isTime) {
+                repository.getMaxRepsEver(exercise.id)?.toDouble()
+            } else {
+                repository.getMaxWeightEver(exercise.id)
+            }
 
             ExerciseCardUiState(
                 sessionExercise = entry,
@@ -177,10 +188,10 @@ class TodayViewModel(
                 planTotal = planTotal,
                 todayTotal = todayTotal,
                 previousTotal = previousTotal,
-                prWeight = prWeight,
-                isExpanded = expandedState[entry.id] ?: true
+                prValue = prValue,
+                isExpanded = expandedState[entry.id] ?: false
             )
-        }.filterNotNull()
+        }
 
         _uiState.value = _uiState.value.copy(cards = cards, isLoading = false)
     }

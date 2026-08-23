@@ -28,4 +28,7 @@ interface ExerciseSetDao {
     /** 이 운동 전체 기간 중 완료된 세트의 최고 중량 (간단한 PR 표시용). */
     @Query("SELECT MAX(weight) FROM exercise_set WHERE exerciseId = :exerciseId AND isCompleted = 1")
     suspend fun getMaxWeightEver(exerciseId: Long): Double?
+
+    @Query("SELECT MAX(reps) FROM exercise_set WHERE exerciseId = :exerciseId AND isCompleted = 1")
+    suspend fun getMaxRepsEver(exerciseId: Long): Int?
 }

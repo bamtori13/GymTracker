@@ -37,12 +37,30 @@ class RoutineViewModel(
         }
     }
 
-    /** "새 루틴 만들기" 화면 확인 버튼. 체크박스로 고른 운동 id들을 그대로 담는다. */
+    /** 새 루틴 만들기 화면 확인 버튼. 체크박스로 고른 운동 id들을 그대로 담는다. */
     fun createRoutine(name: String, exerciseIds: List<Long>, onCreated: (routineId: Long) -> Unit) {
         if (name.isBlank() || exerciseIds.isEmpty()) return
         viewModelScope.launch {
             val id = repository.createRoutine(name.trim(), exerciseIds)
             onCreated(id)
         }
+    }
+
+    fun updateExercise(exercise: Exercise, newName: String, bodyPart: String, inputType: ExerciseInputType) {
+        if (newName.isBlank()) return
+        viewModelScope.launch { repository.updateExercise(exercise, newName.trim(), bodyPart, inputType) }
+    }
+
+    fun deleteExercise(exercise: Exercise) {
+        viewModelScope.launch { repository.deleteExercise(exercise) }
+    }
+
+    fun renameRoutine(routine: WorkoutRoutine, newName: String) {
+        if (newName.isBlank()) return
+        viewModelScope.launch { repository.renameRoutine(routine, newName.trim()) }
+    }
+
+    fun deleteRoutine(routine: WorkoutRoutine) {
+        viewModelScope.launch { repository.deleteRoutine(routine) }
     }
 }
