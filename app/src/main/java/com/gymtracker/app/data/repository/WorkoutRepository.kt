@@ -5,6 +5,8 @@ import com.gymtracker.app.data.backup.BackupCodec
 import com.gymtracker.app.data.backup.BackupData
 import com.gymtracker.app.data.local.AppDatabase
 import com.gymtracker.app.data.local.DefaultExercises
+import com.gymtracker.app.data.local.dao.BodyPartLastDay
+import com.gymtracker.app.data.local.dao.BodyPartMonthStat
 import com.gymtracker.app.data.local.dao.DayBodyPart
 import com.gymtracker.app.data.local.dao.SetHistoryRow
 import com.gymtracker.app.data.local.entity.Exercise
@@ -90,6 +92,14 @@ class WorkoutRepository(private val db: AppDatabase) {
     /** 달력용: 기간 안에 운동이 기록된 날짜별 부위 목록. */
     fun observeBodyPartsInRange(fromEpochDay: Long, toEpochDay: Long): Flow<List<DayBodyPart>> =
         db.sessionDao().observeBodyPartsInRange(fromEpochDay, toEpochDay)
+
+    /** 달력 하단 요약용: 이 달 부위별 시행횟수/총량. */
+    fun observeBodyPartMonthStats(fromEpochDay: Long, toEpochDay: Long): Flow<List<BodyPartMonthStat>> =
+        db.sessionDao().observeBodyPartMonthStats(fromEpochDay, toEpochDay)
+
+    /** 달력 하단 요약용: 부위별 마지막 수행일(전체 기간). */
+    fun observeBodyPartLastDays(): Flow<List<BodyPartLastDay>> =
+        db.sessionDao().observeBodyPartLastDays()
 
     // --- SessionExercise ---
     fun observeSessionExercises(sessionId: Long): Flow<List<SessionExercise>> =
