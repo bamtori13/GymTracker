@@ -193,7 +193,17 @@ private fun CardList(
     onSetToggle: (ExerciseSet) -> Unit,
     onSetDelete: (ExerciseSet) -> Unit,
     onMemoChanged: (ExerciseCardUiState, String) -> Unit
-) 
+) {
+    val listState = rememberLazyListState()
+    // -1 = 끌고 있는 카드 없음. dragOffset은 끌기 시작한 자리에서 누적된 y 이동량(px).
+    var draggingIndex by remember { mutableIntStateOf(-1) }
+    var dragOffset by remember { mutableFloatStateOf(0f) }
+    val swipeAccum = remember { mutableFloatStateOf(0f) }
+    val swipeThresholdPx = with(LocalDensity.current) { 64.dp.toPx() }
+
+  
+
+
 
 @Composable
 private fun ExerciseCard(
