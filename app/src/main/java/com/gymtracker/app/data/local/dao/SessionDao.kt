@@ -2,6 +2,10 @@ package com.gymtracker.app.data.local.dao
 
 import androidx.room.*
 import com.gymtracker.app.data.local.entity.WorkoutSession
+import kotlinx.coroutines.flow.Flow
+
+/** 달력에 색 점을 찍기 위한 projection: "이 날짜에 이 부위 운동이 있었다" 한 줄. */
+data class DayBodyPart(val dateEpochDay: Long, val bodyPart: String)
 
 @Dao
 interface SessionDao {
@@ -20,4 +24,17 @@ interface SessionDao {
             "ORDER BY s.dateEpochDay DESC LIMIT 1"
     )
     suspend fun getLastSessionWithExerciseBefore(exerciseId: Long, beforeEpochDay: Long): WorkoutSession?
+
+    /**
+     * 달력용: 기간 안에서 "운동이 실제로 들어간" 날짜와 그 날의 부위들.
+     * session_exercise를 INNER JOIN하므로 날짜만 넘겨보고 만들어진 빈 세션은 걸러진다.
+     */
+    @Query(
+        "SELECT DISTINCT s.dateEpochDay AS dateEpochDay, e.bodyPart AS bodyPart " +
+            "FROM workout_session s " +
+            "INNER JOIN session_exercise se ON se.sessionId = s.id " +
+            "INNER JOIN exercise e ON e.id = se.exerciseId " +
+            "WHERE s.dateEpochDay BETWEEN :fromEpochDay AND :toEpochDay"
+    )
+    fun observeBodyPartsInRange(fromEpochDay: Long, toEpochDay: Long): Flow<List<DayBodyPart>>
 }
