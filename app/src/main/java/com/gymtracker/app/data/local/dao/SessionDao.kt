@@ -37,4 +37,14 @@ interface SessionDao {
             "WHERE s.dateEpochDay BETWEEN :fromEpochDay AND :toEpochDay"
     )
     fun observeBodyPartsInRange(fromEpochDay: Long, toEpochDay: Long): Flow<List<DayBodyPart>>
+
+    // --- export/import ---
+    @Query("SELECT * FROM workout_session")
+    suspend fun getAll(): List<WorkoutSession>
+
+    @Query("DELETE FROM workout_session")
+    suspend fun deleteAll()
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun restoreAll(items: List<WorkoutSession>)
 }
