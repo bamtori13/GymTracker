@@ -1,8 +1,12 @@
 package com.gymtracker.app.data.repository
 
+import androidx.room.withTransaction
+import com.gymtracker.app.data.backup.BackupCodec
+import com.gymtracker.app.data.backup.BackupData
 import com.gymtracker.app.data.local.AppDatabase
 import com.gymtracker.app.data.local.DefaultExercises
 import com.gymtracker.app.data.local.dao.DayBodyPart
+import com.gymtracker.app.data.local.dao.SetHistoryRow
 import com.gymtracker.app.data.local.entity.Exercise
 import com.gymtracker.app.data.local.entity.ExerciseSet
 import com.gymtracker.app.data.local.entity.RoutineExercise
@@ -127,4 +131,45 @@ class WorkoutRepository(private val db: AppDatabase) {
 
     suspend fun getAllSetsForSession(sessionId: Long): List<ExerciseSet> =
         db.exerciseSetDao().getAllForSession(sessionId)
+
+    // --- 통계 ---
+    /** 완료 체크된 모든 세트를 날짜/운동 정보와 함께. 통계 화면이 여기서 집계한다. */
+    fun observeCompletedSetHistory(): Flow<List<SetHistoryRow>> =
+        db.exerciseSetDao().observeCompletedSetHistory()
+
+    // --- 백업 ---
+    suspend fun exportBackup(): String = BackupCodec.encode(
+        BackupData(
+            exercises = db.exerciseDao().getAll(),
+            routines = db.routineDao().getAll(),
+            routineExercises = db.routineExerciseDao().getAll(),
+            sessions = db.sessionDao().getAll(),
+            sessionExercises = db.sessionExerciseDao().getAll(),
+            sets = db.exerciseSetDao().getAll()
+        )
+    )
+
+    /**
+     * 백업 복원: 기존 데이터를 전부 지우고 파일 내용으로 갈아끼운다.
+     * 삭제/삽입 순서는 외래키 방향을 따라야 한다 (자식 먼저 지우고, 부모 먼저 넣는다).
+     * 트랜잭션으로 감싸서 중간에 실패하면 원래 데이터가 그대로 남는다.
+     */
+    suspend fun importBackup(json: String) {
+        val data = BackupCodec.decode(json)
+        db.withTransaction {
+            db.exerciseSetDao().deleteAll()
+            db.sessionExerciseDao().deleteAll()
+            db.routineExerciseDao().deleteAll()
+            db.sessionDao().deleteAll()
+            db.routineDao().deleteAll()
+            db.exerciseDao().deleteAll()
+
+            db.exerciseDao().restoreAll(data.exercises)
+            db.routineDao().restoreAll(data.routines)
+            db.sessionDao().restoreAll(data.sessions)
+            db.routineExerciseDao().restoreAll(data.routineExercises)
+            db.sessionExerciseDao().restoreAll(data.sessionExercises)
+            db.exerciseSetDao().restoreAll(data.sets)
+        }
+    }
 }
