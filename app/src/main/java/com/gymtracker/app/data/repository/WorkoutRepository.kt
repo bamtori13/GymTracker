@@ -2,6 +2,7 @@ package com.gymtracker.app.data.repository
 
 import com.gymtracker.app.data.local.AppDatabase
 import com.gymtracker.app.data.local.DefaultExercises
+import com.gymtracker.app.data.local.dao.DayBodyPart
 import com.gymtracker.app.data.local.entity.Exercise
 import com.gymtracker.app.data.local.entity.ExerciseSet
 import com.gymtracker.app.data.local.entity.RoutineExercise
@@ -81,6 +82,10 @@ class WorkoutRepository(private val db: AppDatabase) {
 
     suspend fun getLastSessionWithExerciseBefore(exerciseId: Long, beforeEpochDay: Long): WorkoutSession? =
         db.sessionDao().getLastSessionWithExerciseBefore(exerciseId, beforeEpochDay)
+
+    /** 달력용: 기간 안에 운동이 기록된 날짜별 부위 목록. */
+    fun observeBodyPartsInRange(fromEpochDay: Long, toEpochDay: Long): Flow<List<DayBodyPart>> =
+        db.sessionDao().observeBodyPartsInRange(fromEpochDay, toEpochDay)
 
     // --- SessionExercise ---
     fun observeSessionExercises(sessionId: Long): Flow<List<SessionExercise>> =
