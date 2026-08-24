@@ -58,27 +58,19 @@ private fun ExerciseCard(
                 Spacer(Modifier.height(8.dp))
                 Row(Modifier.fillMaxWidth()) {
                     Text("", modifier = Modifier.width(24.dp))
-                    if (isTime) {
-                        Text(
-                            "시간(초)",
-                            modifier = Modifier.weight(1f),
-                            style = MaterialTheme.typography.labelMedium,
-                            textAlign = TextAlign.Center
-                        )
-                    } else {
-                        Text(
-                            "중량(kg)",
-                            modifier = Modifier.weight(1f),
-                            style = MaterialTheme.typography.labelMedium,
-                            textAlign = TextAlign.Center
-                        )
-                        Text(
-                            "횟수",
-                            modifier = Modifier.weight(1f),
-                            style = MaterialTheme.typography.labelMedium,
-                            textAlign = TextAlign.Center
-                        )
-                    }
+                    // 시간 기반(유산소/플랭크)은 앞칸이 "강도"(속도·레벨·경사), 뒷칸이 "시간(초)".
+                    Text(
+                        if (isTime) "강도" else "중량(kg)",
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.labelMedium,
+                        textAlign = TextAlign.Center
+                    )
+                    Text(
+                        if (isTime) "시간(초)" else "횟수",
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.labelMedium,
+                        textAlign = TextAlign.Center
+                    )
                     Spacer(Modifier.width(64.dp))
                 }
 
@@ -141,20 +133,52 @@ private fun ConfirmDialog(
     )
 }
 
-/** 부위 필터/선택 칩. 선택되면 그 부위 고유색으로 칠해진다. "전체"는 색이 없으니 기본 칩 색. */
+/**
+ * 부위 칩 묶음. Material3 FilterChip은 최소 높이가 32dp로 고정이고 여백도 넉넉해서
+ * 부위 7~8개가 한 줄에 안 들어간다. 여기서는 Box+Text로 직접 그려 여백을 줄이고,
+ * FlowRow로 자동 줄바꿈해서 두 줄이 되더라도 가로 스크롤이 필요 없게 만든다.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun BodyPartChipRow(
+    parts: List<String>,
+    selected: String,
+    onSelect: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    FlowRow(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        parts.forEach { part ->
+            BodyPartChip(part = part, selected = part == selected, onClick = { onSelect(part) })
+        }
+    }
+}
+
+/** 부위 필터/선택 칩 하나. 선택되면 그 부위 고유색으로 칠해진다. "전체"는 색이 없으니 기본 색. */
 @Composable
 private fun BodyPartChip(part: String, selected: Boolean, onClick: () -> Unit) {
-    val color = bodyPartColor(part)
-    FilterChip(
-        selected = selected,
-        onClick = onClick,
-        label = { Text(part) },
-        colors = if (part == "전체") FilterChipDefaults.filterChipColors()
-        else FilterChipDefaults.filterChipColors(
-            selectedContainerColor = color.copy(alpha = 0.22f),
-            selectedLabelColor = color
+    val base = if (part == "전체") MaterialTheme.colorScheme.primary else bodyPartColor(part)
+    val outline = MaterialTheme.colorScheme.outlineVariant
+    Box(
+        modifier = Modifier
+            .background(
+                if (selected) base.copy(alpha = 0.22f) else Color.Transparent,
+                RoundedCornerShape(6.dp)
+            )
+            .border(1.dp, if (selected) base else outline, RoundedCornerShape(6.dp))
+            .clickable(onClick = onClick)
+            // FilterChip 기본(12dp/8dp)보다 훨씬 좁게.
+            .padding(horizontal = 8.dp, vertical = 3.dp)
+    ) {
+        Text(
+            part,
+            style = MaterialTheme.typography.labelMedium,
+            color = if (selected) base else MaterialTheme.colorScheme.onSurfaceVariant
         )
-    )
+    }
 }
 
 /** 목록 우측에 붙는 부위 배지. 부위 고유색을 옅게 깔고 글자는 진하게. */
@@ -183,6 +207,9 @@ private const val WEIGHT_STEP = 2.5
 /** 시간(초) −/+ 버튼 한 번에 움직이는 양. 횟수는 항상 1씩. */
 private const val TIME_STEP = 5
 
+/** 유산소 강도(속도/레벨) −/+ 버튼 한 번에 움직이는 양. */
+private const val INTENSITY_STEP = 0.5
+
 /** 7) inputType이 TIME이면 중량 칸을 감추고 "시간(초)" 한 칸만 보여준다.
  *  6) 중량/횟수 입력칸은 숫자만 입력되도록 필터링한다.
  *  4) OutlinedTextField 기본 padding(top/bottom 각 8dp)보다 좁은 CompactNumberField를 사용해
@@ -205,10 +232,7 @@ private fun SetRow(
 
     fun pushReps(text: String) {
         repsText = text
-        onChanged(
-            if (isTime) 0.0 else (weightText.toDoubleOrNull() ?: set.weight),
-            text.toIntOrNull() ?: 0
-        )
+        onChanged(weightText.toDoubleOrNull() ?: set.weight, text.toIntOrNull() ?: 0)
     }
 
     Row(
@@ -217,18 +241,18 @@ private fun SetRow(
     ) {
         Text("${set.setNumber}", modifier = Modifier.width(24.dp))
 
-        if (!isTime) {
-            StepperField(
-                value = weightText,
-                onValueChange = { pushWeight(it.filter { c -> c.isDigit() || c == '.' }) },
-                onStep = { dir ->
-                    val next = ((weightText.toDoubleOrNull() ?: 0.0) + dir * WEIGHT_STEP).coerceAtLeast(0.0)
-                    pushWeight(trimNumber(next))
-                },
-                keyboardType = KeyboardType.Decimal,
-                modifier = Modifier.weight(1f)
-            )
-        }
+        // 시간 기반 운동도 앞칸을 쓴다 — 중량이 아니라 "강도"(러닝 속도, 사이클 레벨 등).
+        StepperField(
+            value = weightText,
+            onValueChange = { pushWeight(it.filter { c -> c.isDigit() || c == '.' }) },
+            onStep = { dir ->
+                val step = if (isTime) INTENSITY_STEP else WEIGHT_STEP
+                val next = ((weightText.toDoubleOrNull() ?: 0.0) + dir * step).coerceAtLeast(0.0)
+                pushWeight(trimNumber(next))
+            },
+            keyboardType = KeyboardType.Decimal,
+            modifier = Modifier.weight(1f)
+        )
         StepperField(
             value = repsText,
             onValueChange = { pushReps(it.filter { c -> c.isDigit() }) },
@@ -528,32 +552,23 @@ private fun ExerciseListContent(
 
     val filtered = exercises.filter { ex ->
         (selectedBodyPart == "전체" || ex.bodyPart == selectedBodyPart) &&
-            (query.isBlank() || ex.name.contains(query, ignoreCase = true))
+            matchesSearch(ex.name, query)
     }
 
     Column {
         AppTextField(
             value = query,
             onValueChange = { query = it },
-            label = { Text("검색") },
+            label = { Text("검색 (초성 가능)") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(Modifier.height(8.dp))
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            bodyParts.forEach { part ->
-                BodyPartChip(
-                    part = part,
-                    selected = selectedBodyPart == part,
-                    onClick = { selectedBodyPart = part }
-                )
-            }
-        }
+        BodyPartChipRow(
+            parts = bodyParts,
+            selected = selectedBodyPart,
+            onSelect = { selectedBodyPart = it }
+        )
         Spacer(Modifier.height(8.dp))
         TextButton(onClick = onCreateNew, modifier = Modifier.fillMaxWidth()) {
             Text("+ 새 운동 추가")
@@ -652,14 +667,14 @@ private fun RoutineListContent(
     var menuTargetId by remember { mutableStateOf<Long?>(null) }
     var editTarget by remember { mutableStateOf<WorkoutRoutine?>(null) }
     var deleteTarget by remember { mutableStateOf<WorkoutRoutine?>(null) }
-    val filtered = routines.filter { query.isBlank() || it.name.contains(query, ignoreCase = true) }
+    val filtered = routines.filter { matchesSearch(it.name, query) }
     val listState = rememberLazyListState()
 
     Column {
         AppTextField(
             value = query,
             onValueChange = { query = it },
-            label = { Text("검색") },
+            label = { Text("검색 (초성 가능)") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth()
         )
@@ -786,16 +801,11 @@ private fun ExerciseEditDialog(
                 )
                 Spacer(Modifier.height(12.dp))
                 Text("부위", style = MaterialTheme.typography.labelLarge)
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    bodyParts.forEach { part ->
-                        BodyPartChip(part = part, selected = bodyPart == part, onClick = { bodyPart = part })
-                    }
-                }
+                BodyPartChipRow(
+                    parts = bodyParts,
+                    selected = bodyPart,
+                    onSelect = { bodyPart = it }
+                )
                 Spacer(Modifier.height(12.dp))
                 Text("입력방법", style = MaterialTheme.typography.labelLarge)
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -841,16 +851,11 @@ private fun AddExerciseFormContent(
         )
         Spacer(Modifier.height(12.dp))
         Text("부위", style = MaterialTheme.typography.labelLarge)
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            DefaultExercises.BODY_PARTS.forEach { part ->
-                BodyPartChip(part = part, selected = bodyPart == part, onClick = { bodyPart = part })
-            }
-        }
+        BodyPartChipRow(
+            parts = DefaultExercises.BODY_PARTS,
+            selected = bodyPart,
+            onSelect = { bodyPart = it }
+        )
         Spacer(Modifier.height(12.dp))
         Text("입력방법", style = MaterialTheme.typography.labelLarge)
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -896,17 +901,25 @@ private fun RoutineFormContent(
     val bodyParts = remember(allExercises) { listOf("전체") + allExercises.map { it.bodyPart }.distinct() }
     val checked = remember(initialCheckedIds) { mutableStateListOf(*initialCheckedIds.toTypedArray()) }
     val checklistState = rememberLazyListState()
+    // 편집 진입 시점의 선택 목록. 이걸로만 정렬해서, 편집 중 체크를 껐다 켤 때
+    // 목록 순서가 튀지 않게 한다(현재 checked로 정렬하면 누를 때마다 항목이 이동한다).
+    val initiallyChecked = remember(initialCheckedIds) { initialCheckedIds.toSet() }
 
-    val filtered = allExercises.filter { ex ->
-        (selectedBodyPart == "전체" || ex.bodyPart == selectedBodyPart) &&
-            (query.isBlank() || ex.name.contains(query, ignoreCase = true))
-    }
+    val filtered = allExercises
+        .filter { ex ->
+            (selectedBodyPart == "전체" || ex.bodyPart == selectedBodyPart) &&
+                matchesSearch(ex.name, query)
+        }
+        // 기존에 루틴에 들어 있던 운동을 맨 위로.
+        .sortedByDescending { it.id in initiallyChecked }
 
     fun toggle(id: Long) {
         if (checked.contains(id)) checked.remove(id) else checked.add(id)
     }
 
-    Column {
+    // heightIn(max)만 걸고 목록에 고정 높이를 주면 내용 합이 최대치를 넘어 "만들기" 버튼이
+    // 팝업 밖으로 잘려 나간다. 높이를 채운 Column에서 목록만 weight로 늘려 버튼을 항상 아래에 붙인다.
+    Column(Modifier.fillMaxHeight()) {
         AppTextField(
             value = routineName,
             onValueChange = { routineName = it },
@@ -918,32 +931,27 @@ private fun RoutineFormContent(
         AppTextField(
             value = query,
             onValueChange = { query = it },
-            label = { Text("운동검색") },
+            label = { Text("운동검색 (초성 가능)") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(Modifier.height(8.dp))
+        BodyPartChipRow(
+            parts = bodyParts,
+            selected = selectedBodyPart,
+            onSelect = { selectedBodyPart = it }
         )
         Spacer(Modifier.height(8.dp))
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                .weight(1f)
         ) {
-            bodyParts.forEach { part ->
-                BodyPartChip(
-                    part = part,
-                    selected = selectedBodyPart == part,
-                    onClick = { selectedBodyPart = part }
-                )
-            }
-        }
-        Spacer(Modifier.height(8.dp))
-        Row(modifier = Modifier.fillMaxWidth()) {
             LazyColumn(
                 state = checklistState,
                 modifier = Modifier
                     .weight(1f)
-                    .heightIn(max = 220.dp)
+                    .fillMaxHeight()
             ) {
                 items(filtered, key = { it.id }) { ex ->
                     val isChecked = checked.contains(ex.id)
@@ -972,7 +980,7 @@ private fun RoutineFormContent(
             SimpleVerticalScrollbar(
                 listState = checklistState,
                 modifier = Modifier
-                    .heightIn(max = 220.dp)
+                    .fillMaxHeight()
                     .padding(start = 2.dp)
             )
         }
