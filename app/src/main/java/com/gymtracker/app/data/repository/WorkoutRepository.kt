@@ -107,6 +107,12 @@ class WorkoutRepository(private val db: AppDatabase) {
     suspend fun updateSessionExerciseMemo(entry: SessionExercise, memo: String) =
         db.sessionExerciseDao().update(entry.copy(memo = memo))
 
+    /** 카드 순서 저장: 넘어온 순서 그대로 sortOrder를 0..n으로 다시 매긴다. */
+    suspend fun reorderSessionExercises(ordered: List<SessionExercise>) =
+        db.sessionExerciseDao().updateAll(
+            ordered.mapIndexed { index, entry -> entry.copy(sortOrder = index) }
+        )
+
     // --- Sets ---
     suspend fun getSetsForExerciseInSession(exerciseId: Long, sessionId: Long): List<ExerciseSet> =
         db.exerciseSetDao().getSetsForExerciseInSession(exerciseId, sessionId)
