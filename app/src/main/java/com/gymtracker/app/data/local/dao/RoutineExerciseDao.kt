@@ -26,4 +26,14 @@ interface RoutineExerciseDao {
 
     @Query("DELETE FROM routine_exercise WHERE routineId = :routineId")
     suspend fun deleteForRoutine(routineId: Long)
+    
+    // --- export/import ---
+    @Query("SELECT * FROM routine_exercise")
+    suspend fun getAll(): List<RoutineExercise>
+
+    @Query("DELETE FROM routine_exercise")
+    suspend fun deleteAll()
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun restoreAll(items: List<RoutineExercise>)
 }
