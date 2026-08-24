@@ -21,4 +21,14 @@ interface RoutineDao {
 
     @Delete
     suspend fun delete(routine: WorkoutRoutine)
+
+    // --- export/import ---
+    @Query("SELECT * FROM workout_routine")
+    suspend fun getAll(): List<WorkoutRoutine>
+
+    @Query("DELETE FROM workout_routine")
+    suspend fun deleteAll()
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun restoreAll(items: List<WorkoutRoutine>)
 }
