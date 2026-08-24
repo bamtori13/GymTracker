@@ -190,6 +190,7 @@ private fun ExerciseCard(
     var memoText by remember(card.sessionExercise.id, card.sessionExercise.memo) {
         mutableStateOf(card.sessionExercise.memo)
     }
+    var showRemoveConfirm by remember { mutableStateOf(false) }
     val isTime = card.exercise.inputType == ExerciseInputType.TIME
     val unit = if (isTime) "초" else "kg"
 
@@ -210,7 +211,7 @@ private fun ExerciseCard(
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f)
                 )
-                IconButton(onClick = onRemove) {
+                IconButton(onClick = { showRemoveConfirm = true }) {
                     Icon(Icons.Filled.Close, contentDescription = "운동 제거")
                 }
             }
@@ -264,6 +265,35 @@ private fun ExerciseCard(
             }
         }
     }
+
+    if (showRemoveConfirm) {
+        ConfirmDialog(
+            title = "운동 삭제",
+            message = "'${card.exercise.name}'을(를) 오늘 운동에서 삭제할까요? 입력한 세트도 함께 사라집니다.",
+            onDismiss = { showRemoveConfirm = false },
+            onConfirm = {
+                showRemoveConfirm = false
+                onRemove()
+            }
+        )
+    }
+}
+
+/** 삭제처럼 되돌릴 수 없는 동작 전에 한 번 물어보는 공용 확인 팝업. */
+@Composable
+private fun ConfirmDialog(
+    title: String,
+    message: String,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = { Text(message) },
+        confirmButton = { TextButton(onClick = onConfirm) { Text("삭제") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("취소") } }
+    )
 }
 
 /** 7) inputType이 TIME이면 중량 칸을 감추고 "시간(초)" 한 칸만 보여준다.
@@ -526,6 +556,7 @@ private fun ExerciseListContent(
     val bodyParts = remember(exercises) { listOf("전체") + exercises.map { it.bodyPart }.distinct() }
     var menuTargetId by remember { mutableStateOf<Long?>(null) }
     var editTarget by remember { mutableStateOf<Exercise?>(null) }
+    var deleteTarget by remember { mutableStateOf<Exercise?>(null) }
     val listState = rememberLazyListState()
 
     val filtered = exercises.filter { ex ->
@@ -592,7 +623,7 @@ private fun ExerciseListContent(
                             onDismissRequest = { menuTargetId = null }
                         ) {
                             DropdownMenuItem(text = { Text("편집") }, onClick = { editTarget = ex; menuTargetId = null })
-                            DropdownMenuItem(text = { Text("삭제") }, onClick = { onDelete(ex); menuTargetId = null })
+                            DropdownMenuItem(text = { Text("삭제") }, onClick = { deleteTarget = ex; menuTargetId = null })
                         }
                     }
                 }
@@ -616,6 +647,15 @@ private fun ExerciseListContent(
             }
         )
     }
+
+    deleteTarget?.let { ex ->
+        ConfirmDialog(
+            title = "운동 삭제",
+            message = "'${ex.name}'을(를) 운동 목록에서 삭제할까요?",
+            onDismiss = { deleteTarget = null },
+            onConfirm = { onDelete(ex); deleteTarget = null }
+        )
+    }
 }
 
 /** 루틴 탭 세부 목록: 검색 + 새 루틴 만들기 + 루틴 목록(롱프레스 시 편집/삭제). */
@@ -631,6 +671,7 @@ private fun RoutineListContent(
     var query by remember { mutableStateOf("") }
     var menuTargetId by remember { mutableStateOf<Long?>(null) }
     var editTarget by remember { mutableStateOf<WorkoutRoutine?>(null) }
+    var deleteTarget by remember { mutableStateOf<WorkoutRoutine?>(null) }
     val filtered = routines.filter { query.isBlank() || it.name.contains(query, ignoreCase = true) }
     val listState = rememberLazyListState()
 
@@ -671,7 +712,7 @@ private fun RoutineListContent(
                             onDismissRequest = { menuTargetId = null }
                         ) {
                             DropdownMenuItem(text = { Text("편집") }, onClick = { editTarget = routine; menuTargetId = null })
-                            DropdownMenuItem(text = { Text("삭제") }, onClick = { onDelete(routine); menuTargetId = null })
+                            DropdownMenuItem(text = { Text("삭제") }, onClick = { deleteTarget = routine; menuTargetId = null })
                         }
                     }
                 }
@@ -691,6 +732,15 @@ private fun RoutineListContent(
             title = "루틴 이름 편집",
             onDismiss = { editTarget = null },
             onConfirm = { newName -> onRename(routine, newName); editTarget = null }
+        )
+    }
+
+    deleteTarget?.let { routine ->
+        ConfirmDialog(
+            title = "루틴 삭제",
+            message = "'${routine.name}' 루틴을 삭제할까요?",
+            onDismiss = { deleteTarget = null },
+            onConfirm = { onDelete(routine); deleteTarget = null }
         )
     }
 }
