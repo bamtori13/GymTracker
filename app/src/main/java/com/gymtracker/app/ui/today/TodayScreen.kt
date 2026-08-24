@@ -246,6 +246,10 @@ private fun ExerciseCard(
                     )
                 }
 
+                TextButton(onClick = onAddSet) {
+                    Text("+ 세트추가")
+                }
+
                 Spacer(Modifier.height(6.dp))
                 AppTextField(
                     value = memoText,
@@ -257,11 +261,6 @@ private fun ExerciseCard(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
-
-                Spacer(Modifier.height(8.dp))
-                TextButton(onClick = onAddSet) {
-                    Text("+ 세트추가")
-                }
             }
         }
     }
