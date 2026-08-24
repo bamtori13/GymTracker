@@ -7,6 +7,20 @@ import kotlinx.coroutines.flow.Flow
 /** 달력에 색 점을 찍기 위한 projection: "이 날짜에 이 부위 운동이 있었다" 한 줄. */
 data class DayBodyPart(val dateEpochDay: Long, val bodyPart: String)
 
+/** 달력 아래 부위별 월간 요약 한 줄. */
+data class BodyPartMonthStat(
+    val bodyPart: String,
+    /** 이 달에 이 부위를 한 날 수 = 시행횟수. */
+    val dayCount: Int,
+    /** 완료 세트의 무게×횟수 합 (중량 운동만). */
+    val totalVolume: Double,
+    /** 완료 세트의 시간 합 (시간 기반 운동만, 초). */
+    val totalSeconds: Int
+)
+
+/** 부위별 "마지막으로 한 날" (기간 제한 없음). 경과일 계산용. */
+data class BodyPartLastDay(val bodyPart: String, val lastEpochDay: Long)
+
 @Dao
 interface SessionDao {
 
@@ -37,6 +51,35 @@ interface SessionDao {
             "WHERE s.dateEpochDay BETWEEN :fromEpochDay AND :toEpochDay"
     )
     fun observeBodyPartsInRange(fromEpochDay: Long, toEpochDay: Long): Flow<List<DayBodyPart>>
+
+    /**
+     * 부위별 월간 요약. session_exercise 기준으로 "한 날"을 세므로 달력의 색 표시와 개수가 일치한다.
+     * 총량은 완료 체크된 세트만 더하고, 중량/시간을 섞지 않도록 inputType으로 갈라서 각각 합친다.
+     */
+    @Query(
+        "SELECT e.bodyPart AS bodyPart, " +
+            "COUNT(DISTINCT s.dateEpochDay) AS dayCount, " +
+            "COALESCE(SUM(CASE WHEN es.isCompleted = 1 AND e.inputType = 'WEIGHT_REPS' " +
+            "THEN es.weight * es.reps ELSE 0 END), 0) AS totalVolume, " +
+            "COALESCE(SUM(CASE WHEN es.isCompleted = 1 AND e.inputType = 'TIME' " +
+            "THEN es.reps ELSE 0 END), 0) AS totalSeconds " +
+            "FROM session_exercise se " +
+            "INNER JOIN workout_session s ON s.id = se.sessionId " +
+            "INNER JOIN exercise e ON e.id = se.exerciseId " +
+            "LEFT JOIN exercise_set es ON es.sessionId = se.sessionId AND es.exerciseId = se.exerciseId " +
+            "WHERE s.dateEpochDay BETWEEN :fromEpochDay AND :toEpochDay " +
+            "GROUP BY e.bodyPart"
+    )
+    fun observeBodyPartMonthStats(fromEpochDay: Long, toEpochDay: Long): Flow<List<BodyPartMonthStat>>
+
+    @Query(
+        "SELECT e.bodyPart AS bodyPart, MAX(s.dateEpochDay) AS lastEpochDay " +
+            "FROM session_exercise se " +
+            "INNER JOIN workout_session s ON s.id = se.sessionId " +
+            "INNER JOIN exercise e ON e.id = se.exerciseId " +
+            "GROUP BY e.bodyPart"
+    )
+    fun observeBodyPartLastDays(): Flow<List<BodyPartLastDay>>
 
     // --- export/import ---
     @Query("SELECT * FROM workout_session")
