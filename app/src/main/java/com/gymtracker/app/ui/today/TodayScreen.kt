@@ -2,19 +2,18 @@ package com.gymtracker.app.ui.today
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
@@ -27,6 +26,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -48,6 +48,7 @@ import com.gymtracker.app.data.local.entity.ExerciseSet
 import com.gymtracker.app.data.local.entity.WorkoutRoutine
 import com.gymtracker.app.ui.routine.RoutineViewModel
 import com.gymtracker.app.ui.theme.bodyPartColor
+import com.gymtracker.app.ui.util.matchesSearch
 import kotlinx.coroutines.flow.Flow
 import java.time.LocalDate
 import java.time.ZoneId
@@ -210,7 +211,7 @@ private fun CardList(
                 detectHorizontalDragGestures(
                     onDragStart = { swipeAccum.value = 0f },
                     onDragEnd = {
-                          when {
+                        when {
                             swipeAccum.value > swipeThresholdPx -> onSwipePrevious()
                             swipeAccum.value < -swipeThresholdPx -> onSwipeNext()
                         }
@@ -287,5 +288,3 @@ private fun CardList(
         }
     }
 }
-
-  
