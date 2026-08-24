@@ -60,6 +60,12 @@ class RoutineViewModel(
         viewModelScope.launch { repository.renameRoutine(routine, newName.trim()) }
     }
 
+    /** 루틴 편집: 이름 + 포함 운동을 함께 저장한다. */
+    fun updateRoutine(routine: WorkoutRoutine, newName: String, exerciseIds: List<Long>) {
+        if (newName.isBlank() || exerciseIds.isEmpty()) return
+        viewModelScope.launch { repository.updateRoutine(routine, newName.trim(), exerciseIds) }
+    }
+
     fun deleteRoutine(routine: WorkoutRoutine) {
         viewModelScope.launch { repository.deleteRoutine(routine) }
     }
