@@ -37,6 +37,8 @@ import com.gymtracker.app.data.local.entity.ExerciseInputType
 import com.gymtracker.app.data.local.entity.ExerciseSet
 import com.gymtracker.app.data.local.entity.WorkoutRoutine
 import com.gymtracker.app.ui.routine.RoutineViewModel
+import com.gymtracker.app.ui.theme.bodyPartColor
+import kotlinx.coroutines.flow.Flow
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -296,6 +298,42 @@ private fun ConfirmDialog(
     )
 }
 
+/** 부위 필터/선택 칩. 선택되면 그 부위 고유색으로 칠해진다. "전체"는 색이 없으니 기본 칩 색. */
+@Composable
+private fun BodyPartChip(part: String, selected: Boolean, onClick: () -> Unit) {
+    val color = bodyPartColor(part)
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = { Text(part) },
+        colors = if (part == "전체") FilterChipDefaults.filterChipColors()
+        else FilterChipDefaults.filterChipColors(
+            selectedContainerColor = color.copy(alpha = 0.22f),
+            selectedLabelColor = color
+        )
+    )
+}
+
+/** 목록 우측에 붙는 부위 배지. 부위 고유색을 옅게 깔고 글자는 진하게. */
+@Composable
+private fun BodyPartBadge(part: String) {
+    val color = bodyPartColor(part)
+    Text(
+        part,
+        style = MaterialTheme.typography.labelMedium,
+        color = color,
+        modifier = Modifier
+            .background(color.copy(alpha = 0.14f), RoundedCornerShape(6.dp))
+            .padding(horizontal = 6.dp, vertical = 2.dp)
+    )
+}
+
+/** 목록 항목 사이를 나누는 옅은 가로선. */
+@Composable
+private fun RowDivider() {
+    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+}
+
 /** 7) inputType이 TIME이면 중량 칸을 감추고 "시간(초)" 한 칸만 보여준다.
  *  6) 중량/횟수 입력칸은 숫자만 입력되도록 필터링한다.
  *  4) OutlinedTextField 기본 padding(top/bottom 각 8dp)보다 좁은 CompactNumberField를 사용해
@@ -463,8 +501,9 @@ private fun AddExercisePickerDialog(
                             routineViewModel.updateExercise(ex, name, bodyPart, inputType)
                         },
                         onDeleteExercise = { ex -> routineViewModel.deleteExercise(ex) },
-                        onRenameRoutine = { r, name -> routineViewModel.renameRoutine(r, name) },
-                        onDeleteRoutine = { r -> routineViewModel.deleteRoutine(r) }
+                        onEditRoutine = { r, name, ids -> routineViewModel.updateRoutine(r, name, ids) },
+                        onDeleteRoutine = { r -> routineViewModel.deleteRoutine(r) },
+                        exercisesForRoutine = { id -> routineViewModel.exercisesFor(id) }
                     )
                     AddExerciseStep.ADD_EXERCISE -> AddExerciseFormContent(
                         onConfirm = { name, bodyPart, inputType ->
@@ -473,8 +512,9 @@ private fun AddExercisePickerDialog(
                             }
                         }
                     )
-                    AddExerciseStep.CREATE_ROUTINE -> CreateRoutineFormContent(
+                    AddExerciseStep.CREATE_ROUTINE -> RoutineFormContent(
                         allExercises = exercises,
+                        confirmLabel = "만들기",
                         onConfirm = { name, exerciseIds ->
                             routineViewModel.createRoutine(name, exerciseIds) { id ->
                                 onRoutineCreated(id)
@@ -509,8 +549,9 @@ private fun MainPickerContent(
     onCreateRoutineClick: () -> Unit,
     onEditExercise: (Exercise, String, String, ExerciseInputType) -> Unit,
     onDeleteExercise: (Exercise) -> Unit,
-    onRenameRoutine: (WorkoutRoutine, String) -> Unit,
-    onDeleteRoutine: (WorkoutRoutine) -> Unit
+    onEditRoutine: (WorkoutRoutine, String, List<Long>) -> Unit,
+    onDeleteRoutine: (WorkoutRoutine) -> Unit,
+    exercisesForRoutine: (Long) -> Flow<List<Exercise>>
 ) {
     Column {
         TabRow(selectedTabIndex = selectedTab) {
@@ -529,10 +570,12 @@ private fun MainPickerContent(
         } else {
             RoutineListContent(
                 routines = routines,
+                allExercises = exercises,
                 onPick = onPickRoutine,
                 onCreateNew = onCreateRoutineClick,
-                onRename = onRenameRoutine,
-                onDelete = onDeleteRoutine
+                onEdit = onEditRoutine,
+                onDelete = onDeleteRoutine,
+                exercisesForRoutine = exercisesForRoutine
             )
         }
     }
@@ -580,10 +623,10 @@ private fun ExerciseListContent(
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             bodyParts.forEach { part ->
-                FilterChip(
+                BodyPartChip(
+                    part = part,
                     selected = selectedBodyPart == part,
-                    onClick = { selectedBodyPart = part },
-                    label = { Text(part) }
+                    onClick = { selectedBodyPart = part }
                 )
             }
         }
@@ -599,32 +642,43 @@ private fun ExerciseListContent(
                     .heightIn(max = 260.dp)
             ) {
                 items(filtered, key = { it.id }) { ex ->
-                    Box {
+                    Column {
                         val inputLabel = if (ex.inputType == ExerciseInputType.TIME) "시간" else "중량/횟수"
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .combinedClickable(
-                                    onClick = { onPick(ex.id) },
-                                    onLongClick = { menuTargetId = ex.id }
+                        Box {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .combinedClickable(
+                                        onClick = { onPick(ex.id) },
+                                        onLongClick = { menuTargetId = ex.id }
+                                    )
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // 이름은 좌측정렬로 남은 폭을 다 쓰고, 부위/입력방식은 우측정렬로 붙는다.
+                                Text(
+                                    ex.name,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f)
                                 )
-                                .padding(horizontal = 12.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                "${ex.name} · ${ex.bodyPart} · $inputLabel",
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f)
-                            )
+                                BodyPartBadge(ex.bodyPart)
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    inputLabel,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            DropdownMenu(
+                                expanded = menuTargetId == ex.id,
+                                onDismissRequest = { menuTargetId = null }
+                            ) {
+                                DropdownMenuItem(text = { Text("편집") }, onClick = { editTarget = ex; menuTargetId = null })
+                                DropdownMenuItem(text = { Text("삭제") }, onClick = { deleteTarget = ex; menuTargetId = null })
+                            }
                         }
-                        DropdownMenu(
-                            expanded = menuTargetId == ex.id,
-                            onDismissRequest = { menuTargetId = null }
-                        ) {
-                            DropdownMenuItem(text = { Text("편집") }, onClick = { editTarget = ex; menuTargetId = null })
-                            DropdownMenuItem(text = { Text("삭제") }, onClick = { deleteTarget = ex; menuTargetId = null })
-                        }
+                        RowDivider()
                     }
                 }
             }
@@ -663,10 +717,12 @@ private fun ExerciseListContent(
 @Composable
 private fun RoutineListContent(
     routines: List<WorkoutRoutine>,
+    allExercises: List<Exercise>,
     onPick: (Long) -> Unit,
     onCreateNew: () -> Unit,
-    onRename: (WorkoutRoutine, String) -> Unit,
-    onDelete: (WorkoutRoutine) -> Unit
+    onEdit: (WorkoutRoutine, String, List<Long>) -> Unit,
+    onDelete: (WorkoutRoutine) -> Unit,
+    exercisesForRoutine: (Long) -> Flow<List<Exercise>>
 ) {
     var query by remember { mutableStateOf("") }
     var menuTargetId by remember { mutableStateOf<Long?>(null) }
@@ -695,25 +751,44 @@ private fun RoutineListContent(
                     .heightIn(max = 260.dp)
             ) {
                 items(filtered, key = { it.id }) { routine ->
-                    Box {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .combinedClickable(
-                                    onClick = { onPick(routine.id) },
-                                    onLongClick = { menuTargetId = routine.id }
-                                )
-                                .padding(horizontal = 12.dp, vertical = 10.dp)
-                        ) {
-                            Text(routine.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    // 루틴에 든 운동 이름을 두번째 줄에 요약해서 보여준다.
+                    // Flow는 remember로 붙들어야 한다 — 매 recomposition마다 새로 만들면
+                    // collectAsState가 initial(빈 목록)로 되돌아가면서 재구성이 무한 반복된다.
+                    val memberFlow = remember(routine.id) { exercisesForRoutine(routine.id) }
+                    val members by memberFlow.collectAsState(initial = emptyList())
+                    Column {
+                        Box {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .combinedClickable(
+                                        onClick = { onPick(routine.id) },
+                                        onLongClick = { menuTargetId = routine.id }
+                                    )
+                                    // 루틴은 항목 수가 적으니 위아래로 넉넉하게 띄운다.
+                                    .padding(horizontal = 12.dp, vertical = 14.dp)
+                            ) {
+                                Text(routine.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                if (members.isNotEmpty()) {
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(
+                                        members.joinToString(" · ") { it.name },
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                            DropdownMenu(
+                                expanded = menuTargetId == routine.id,
+                                onDismissRequest = { menuTargetId = null }
+                            ) {
+                                DropdownMenuItem(text = { Text("편집") }, onClick = { editTarget = routine; menuTargetId = null })
+                                DropdownMenuItem(text = { Text("삭제") }, onClick = { deleteTarget = routine; menuTargetId = null })
+                            }
                         }
-                        DropdownMenu(
-                            expanded = menuTargetId == routine.id,
-                            onDismissRequest = { menuTargetId = null }
-                        ) {
-                            DropdownMenuItem(text = { Text("편집") }, onClick = { editTarget = routine; menuTargetId = null })
-                            DropdownMenuItem(text = { Text("삭제") }, onClick = { deleteTarget = routine; menuTargetId = null })
-                        }
+                        RowDivider()
                     }
                 }
             }
@@ -727,11 +802,24 @@ private fun RoutineListContent(
     }
 
     editTarget?.let { routine ->
-        RenameDialog(
-            initialName = routine.name,
-            title = "루틴 이름 편집",
-            onDismiss = { editTarget = null },
-            onConfirm = { newName -> onRename(routine, newName); editTarget = null }
+        val memberFlow = remember(routine.id) { exercisesForRoutine(routine.id) }
+        val members by memberFlow.collectAsState(initial = emptyList())
+        // 5) 루틴 편집도 이름만이 아니라 포함 운동까지 함께 고칠 수 있게 만들기 화면을 그대로 재사용한다.
+        AlertDialog(
+            onDismissRequest = { editTarget = null },
+            title = { Text("루틴 편집") },
+            text = {
+                Box(Modifier.heightIn(max = 420.dp)) {
+                    RoutineFormContent(
+                        allExercises = allExercises,
+                        initialName = routine.name,
+                        initialCheckedIds = members.map { it.id },
+                        confirmLabel = "저장",
+                        onConfirm = { name, ids -> onEdit(routine, name, ids); editTarget = null }
+                    )
+                }
+            },
+            confirmButton = { TextButton(onClick = { editTarget = null }) { Text("닫기") } }
         )
     }
 
@@ -743,32 +831,6 @@ private fun RoutineListContent(
             onConfirm = { onDelete(routine); deleteTarget = null }
         )
     }
-}
-
-@Composable
-private fun RenameDialog(
-    initialName: String,
-    title: String,
-    onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit
-) {
-    var name by remember { mutableStateOf(initialName) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = {
-            AppTextField(
-                value = name,
-                onValueChange = { name = it },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-        },
-        confirmButton = {
-            TextButton(onClick = { onConfirm(name.trim()) }, enabled = name.isNotBlank()) { Text("저장") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("취소") } }
-    )
 }
 
 /**
@@ -807,11 +869,7 @@ private fun ExerciseEditDialog(
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     bodyParts.forEach { part ->
-                        FilterChip(
-                            selected = bodyPart == part,
-                            onClick = { bodyPart = part },
-                            label = { Text(part) }
-                        )
+                        BodyPartChip(part = part, selected = bodyPart == part, onClick = { bodyPart = part })
                     }
                 }
                 Spacer(Modifier.height(12.dp))
@@ -866,11 +924,7 @@ private fun AddExerciseFormContent(
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             DefaultExercises.BODY_PARTS.forEach { part ->
-                FilterChip(
-                    selected = bodyPart == part,
-                    onClick = { bodyPart = part },
-                    label = { Text(part) }
-                )
+                BodyPartChip(part = part, selected = bodyPart == part, onClick = { bodyPart = part })
             }
         }
         Spacer(Modifier.height(12.dp))
@@ -905,15 +959,18 @@ private fun AddExerciseFormContent(
  *    바꾸고, 토글은 Row의 clickable 한 곳에서만 처리한다.
  */
 @Composable
-private fun CreateRoutineFormContent(
+private fun RoutineFormContent(
     allExercises: List<Exercise>,
+    confirmLabel: String,
+    initialName: String = "",
+    initialCheckedIds: List<Long> = emptyList(),
     onConfirm: (name: String, exerciseIds: List<Long>) -> Unit
 ) {
-    var routineName by remember { mutableStateOf("") }
+    var routineName by remember(initialName) { mutableStateOf(initialName) }
     var query by remember { mutableStateOf("") }
     var selectedBodyPart by remember { mutableStateOf("전체") }
     val bodyParts = remember(allExercises) { listOf("전체") + allExercises.map { it.bodyPart }.distinct() }
-    val checked = remember { mutableStateListOf<Long>() }
+    val checked = remember(initialCheckedIds) { mutableStateListOf(*initialCheckedIds.toTypedArray()) }
     val checklistState = rememberLazyListState()
 
     val filtered = allExercises.filter { ex ->
@@ -949,10 +1006,10 @@ private fun CreateRoutineFormContent(
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             bodyParts.forEach { part ->
-                FilterChip(
+                BodyPartChip(
+                    part = part,
                     selected = selectedBodyPart == part,
-                    onClick = { selectedBodyPart = part },
-                    label = { Text(part) }
+                    onClick = { selectedBodyPart = part }
                 )
             }
         }
@@ -966,15 +1023,25 @@ private fun CreateRoutineFormContent(
             ) {
                 items(filtered, key = { it.id }) { ex ->
                     val isChecked = checked.contains(ex.id)
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { toggle(ex.id) },
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // onCheckedChange = null → 체크박스는 표시 전용, 실제 토글은 Row의 clickable 하나로만 처리.
-                        Checkbox(checked = isChecked, onCheckedChange = null)
-                        Text("${ex.name} (${ex.bodyPart})")
+                    Column {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { toggle(ex.id) }
+                                .padding(end = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // onCheckedChange = null → 체크박스는 표시 전용, 실제 토글은 Row의 clickable 하나로만 처리.
+                            Checkbox(checked = isChecked, onCheckedChange = null)
+                            Text(
+                                ex.name,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                            BodyPartBadge(ex.bodyPart)
+                        }
+                        RowDivider()
                     }
                 }
             }
@@ -992,7 +1059,7 @@ private fun CreateRoutineFormContent(
             enabled = canCreate,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("만들기 (${checked.size}개 운동)")
+            Text("$confirmLabel (${checked.size}개 운동)")
         }
     }
 }
