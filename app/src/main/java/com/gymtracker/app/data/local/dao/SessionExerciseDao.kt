@@ -27,4 +27,14 @@ interface SessionExerciseDao {
 
     @Delete
     suspend fun delete(entry: SessionExercise)
+
+    // --- export/import ---
+    @Query("SELECT * FROM session_exercise")
+    suspend fun getAll(): List<SessionExercise>
+
+    @Query("DELETE FROM session_exercise")
+    suspend fun deleteAll()
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun restoreAll(items: List<SessionExercise>)
 }
