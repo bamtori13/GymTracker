@@ -37,7 +37,9 @@ import com.gymtracker.app.ui.calendar.CalendarScreen
 import com.gymtracker.app.ui.calendar.CalendarViewModel
 import com.gymtracker.app.ui.routine.RoutineViewModel
 import com.gymtracker.app.ui.settings.SettingsScreen
+import com.gymtracker.app.ui.settings.SettingsViewModel
 import com.gymtracker.app.ui.stats.StatsScreen
+import com.gymtracker.app.ui.stats.StatsViewModel
 import com.gymtracker.app.ui.theme.GymTrackerTheme
 import com.gymtracker.app.ui.today.TodayScreen
 import com.gymtracker.app.ui.today.TodayViewModel
@@ -77,6 +79,8 @@ fun GymTrackerApp(factory: ViewModelFactory) {
     val routineViewModel: RoutineViewModel = viewModel(factory = factory)
     val todayViewModel: TodayViewModel = viewModel(factory = factory)
     val calendarViewModel: CalendarViewModel = viewModel(factory = factory)
+    val statsViewModel: StatsViewModel = viewModel(factory = factory)
+    val settingsViewModel: SettingsViewModel = viewModel(factory = factory)
 
     Scaffold(
         bottomBar = {
@@ -129,10 +133,10 @@ fun GymTrackerApp(factory: ViewModelFactory) {
                 )
             }
             composable(BottomTab.STATS.route) {
-                StatsScreen()
+                StatsScreen(statsViewModel = statsViewModel)
             }
             composable(BottomTab.SETTINGS.route) {
-                SettingsScreen(routineViewModel = routineViewModel)
+                SettingsScreen(settingsViewModel = settingsViewModel)
             }
         }
     }
