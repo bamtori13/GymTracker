@@ -34,6 +34,7 @@ import com.gymtracker.app.data.local.AppDatabase
 import com.gymtracker.app.data.repository.WorkoutRepository
 import com.gymtracker.app.ui.ViewModelFactory
 import com.gymtracker.app.ui.calendar.CalendarScreen
+import com.gymtracker.app.ui.calendar.CalendarViewModel
 import com.gymtracker.app.ui.routine.RoutineViewModel
 import com.gymtracker.app.ui.settings.SettingsScreen
 import com.gymtracker.app.ui.stats.StatsScreen
@@ -75,6 +76,7 @@ fun GymTrackerApp(factory: ViewModelFactory) {
     // 여러 탭에서 공유하는 ViewModel들 (Activity scope에서 한 번만 생성).
     val routineViewModel: RoutineViewModel = viewModel(factory = factory)
     val todayViewModel: TodayViewModel = viewModel(factory = factory)
+    val calendarViewModel: CalendarViewModel = viewModel(factory = factory)
 
     Scaffold(
         bottomBar = {
@@ -116,6 +118,7 @@ fun GymTrackerApp(factory: ViewModelFactory) {
             }
             composable(BottomTab.CALENDAR.route) {
                 CalendarScreen(
+                    calendarViewModel = calendarViewModel,
                     onDatePicked = { date ->
                         todayViewModel.loadDate(date)
                         navController.navigate(BottomTab.TODAY.route) {
