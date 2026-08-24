@@ -87,35 +87,20 @@ fun TodayScreen(
                     CircularProgressIndicator()
                 }
             } else {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                    contentPadding = PaddingValues(vertical = 12.dp)
-                ) {
-                    items(state.cards, key = { it.sessionExercise.id }) { card ->
-                        ExerciseCard(
-                            card = card,
-                            onToggleExpand = { todayViewModel.toggleExpand(card.sessionExercise.id) },
-                            onRemove = { todayViewModel.removeCard(card) },
-                            onAddSet = { todayViewModel.addSet(card) },
-                            onSetChanged = { set, weight, reps -> todayViewModel.updateSet(set, weight, reps) },
-                            onSetToggle = { set -> todayViewModel.toggleSetCompleted(set) },
-                            onSetDelete = { set -> todayViewModel.deleteSet(set) },
-                            onMemoChanged = { memo -> todayViewModel.updateMemo(card, memo) }
-                        )
-                    }
-                    item {
-                        OutlinedButton(
-                            onClick = { showAddExercise = true },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("+ 운동추가")
-                        }
-                        Spacer(Modifier.height(8.dp))
-                    }
-                }
+                CardList(
+                    cards = state.cards,
+                    onSwipePrevious = { todayViewModel.goToPreviousDay() },
+                    onSwipeNext = { todayViewModel.goToNextDay() },
+                    onMove = { from, to -> todayViewModel.moveCard(from, to) },
+                    onAddExerciseClick = { showAddExercise = true },
+                    onToggleExpand = { todayViewModel.toggleExpand(it) },
+                    onRemove = { todayViewModel.removeCard(it) },
+                    onAddSet = { todayViewModel.addSet(it) },
+                    onSetChanged = { set, weight, reps -> todayViewModel.updateSet(set, weight, reps) },
+                    onSetToggle = { todayViewModel.toggleSetCompleted(it) },
+                    onSetDelete = { todayViewModel.deleteSet(it) },
+                    onMemoChanged = { card, memo -> todayViewModel.updateMemo(card, memo) }
+                )
             }
         }
     }
