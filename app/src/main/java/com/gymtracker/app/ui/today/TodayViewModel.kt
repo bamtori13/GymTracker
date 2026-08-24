@@ -79,6 +79,7 @@ class TodayViewModel(
         val sessionId = _uiState.value.sessionId ?: return
         viewModelScope.launch {
             repository.addExerciseToSession(sessionId, exerciseId)
+            ensureFirstSet(sessionId, exerciseId)
             refreshCards()
         }
     }
@@ -87,8 +88,27 @@ class TodayViewModel(
         val sessionId = _uiState.value.sessionId ?: return
         viewModelScope.launch {
             repository.addRoutineToSession(sessionId, routineId)
+            repository.observeSessionExercises(sessionId).first()
+                .forEach { ensureFirstSet(sessionId, it.exerciseId) }
             refreshCards()
         }
+    }
+
+    /** 운동을 오늘에 처음 추가했을 때 입력 칸이 아예 없으면 1세트를 기본으로 만들어 준다. */
+    private suspend fun ensureFirstSet(sessionId: Long, exerciseId: Long) {
+        if (repository.getSetsForExerciseInSession(exerciseId, sessionId).isNotEmpty()) return
+        val exercise = repository.getExercise(exerciseId) ?: return
+        val isTime = exercise.inputType == ExerciseInputType.TIME
+        repository.saveSet(
+            ExerciseSet(
+                sessionId = sessionId,
+                exerciseId = exerciseId,
+                setNumber = 1,
+                weight = if (isTime) 0.0 else exercise.currentTargetWeight,
+                reps = exercise.minReps,
+                isCompleted = false
+            )
+        )
     }
 
     fun removeCard(card: ExerciseCardUiState) {
