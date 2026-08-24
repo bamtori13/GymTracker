@@ -124,7 +124,7 @@ PersonalRecord (Phase 2에서 채워질 PR 이력 테이블. 지금은 스키마
 
 Phase 2에서 점진적 과부하 알고리즘을 붙이면 "계획"이 지난 수행 결과를 바탕으로 자동 추천되도록 바뀔 예정입니다.
 
-# OFFICE version prompt
+# OFFICE version prompt & 구현결과
 
 
  1. 오늘 운동 입력 시 운동 처음 추가하면 세트 입력 칸 하나 기본 생성
@@ -190,3 +190,25 @@ SettingsScreen.kt: SAF(CreateDocument/OpenDocument)로 파일 위치 선택 — 
 6. 달력 날짜별 높이를 늘려서 날짜 밑에 부위 글씨까지 표시
 7. 달력 월을 누르면 월간 이동 가능한 캘린더 팝업
 8. 달력 아래 부위별 월간 간단한 정보 표시(이번달 시행횟수/총중량/마지막 수행 후 경과일)
+
+8개 항목 반영 완료. 컴파일 검증 불가 — JAVA_HOME이 JRE 1.8을 가리켜 gradlew 실행 안 됨.
+
+1. 유산소 강도 — ExerciseSet.weight 칸을 TIME 운동에서 "강도"(속도·레벨·경사)로 쓰도록 함. 스키마 변경 없음. TIME도 두 칸 모두 표시(강도 / 시간(초)), ± 스텝 INTENSITY_STEP = 0.5. TodayViewModel.kt에서 세트 추가 시 직전 강도를 이어받음. 통계·달력 총량 계산은 TIME의 weight를 무시하도록 이미 분리돼 있음.
+
+2. 부위 칩 — BodyPartChipRow: FlowRow 자동 줄바꿈 + Box/Text 직접 구현 칩(패딩 8dp/3dp). M3 FilterChip은 최소높이 32dp 고정이라 못 줄임. 가로 스크롤 전부 제거.
+
+3. 초성검색 — KoreanSearch.kt: 유니코드 (code-0xAC00)/588로 초성 추출. matchesSearch()를 운동/루틴/체크리스트 3곳에 적용. "ㅂㅊ" → 벤치프레스.
+
+4. 루틴 편집 선택항목 우선 — initialCheckedIds를 remember로 스냅샷해 그것으로 정렬. 현재 checked로 정렬하면 체크 토글마다 항목이 튐.
+
+5. 완료 버튼 안 보임 (버그) — 원인: Column 안에서 목록에 heightIn(max=220) 고정 높이를 줘서 내용 합이 팝업 최대높이(420)를 넘으면 버튼이 잘려나감. Column(fillMaxHeight) + 목록 weight(1f)로 바꿔 버튼을 항상 하단에 고정.
+
+6. 달력 날짜 칸 — 52dp → 74dp, 색 점 대신 부위 이름을 9sp 색 글씨(옅은 배경)로 최대 2개, 초과분은 +N.
+
+7. 월 선택 팝업 — 년월 텍스트 클릭 → MonthPickerDialog (년도 ◀▶ + 1~12월 3×4 격자, 현재월 테두리/선택월 채움).
+
+8. 부위별 월간 요약 — SessionDao.kt에 쿼리 2개:
+
+observeBodyPartMonthStats: session_exercise 기준 COUNT(DISTINCT dateEpochDay) (달력 색 표시와 개수 일치) + 완료 세트만 inputType으로 갈라 kg·회 / 초 각각 합산
+observeBodyPartLastDays: 전체 기간 MAX(dateEpochDay) → 경과일
+CalendarViewModel.kt에서 두 flow를 combine, 이번달에 안 한 부위도 "며칠 쉬었는지" 보이도록 합집합. 화면은 부위 · N회 · 총량 · N일 전 한 줄씩.
