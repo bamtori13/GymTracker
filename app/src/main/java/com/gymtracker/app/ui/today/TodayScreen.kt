@@ -210,6 +210,7 @@ private fun CardList(
                 detectHorizontalDragGestures(
                     onDragStart = { swipeAccum.value = 0f },
                     onDragEnd = {
+                        when {
                       
     )
 
