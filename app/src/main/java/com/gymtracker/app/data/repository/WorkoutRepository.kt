@@ -60,6 +60,17 @@ class WorkoutRepository(private val db: AppDatabase) {
     suspend fun renameRoutine(routine: WorkoutRoutine, newName: String) =
         db.routineDao().update(routine.copy(name = newName))
 
+    /** 루틴 편집: 이름과 포함 운동 목록을 통째로 갈아끼운다. */
+    suspend fun updateRoutine(routine: WorkoutRoutine, newName: String, exerciseIds: List<Long>) {
+        db.routineDao().update(routine.copy(name = newName))
+        db.routineExerciseDao().deleteForRoutine(routine.id)
+        db.routineExerciseDao().insertAll(
+            exerciseIds.mapIndexed { index, exerciseId ->
+                RoutineExercise(routineId = routine.id, exerciseId = exerciseId, sortOrder = index)
+            }
+        )
+    }
+
     suspend fun deleteRoutine(routine: WorkoutRoutine) = db.routineDao().delete(routine)
 
     // --- Session (날짜 단위) ---
