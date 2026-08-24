@@ -104,6 +104,7 @@ class TodayViewModel(
                 sessionId = sessionId,
                 exerciseId = exerciseId,
                 setNumber = 1,
+                // 시간 기반 운동은 weight 칸이 "강도"라서 목표중량을 쓰지 않고 0에서 시작한다.
                 weight = if (isTime) 0.0 else exercise.currentTargetWeight,
                 reps = exercise.minReps,
                 isCompleted = false
@@ -145,7 +146,8 @@ class TodayViewModel(
         val isTime = card.exercise.inputType == ExerciseInputType.TIME
         val nextNumber = (card.sets.maxOfOrNull { it.setNumber } ?: 0) + 1
         val lastSet = card.sets.lastOrNull()
-        val defaultWeight = if (isTime) 0.0 else (lastSet?.weight ?: card.exercise.currentTargetWeight)
+        // 시간 기반 운동에서는 weight 칸이 "강도"(속도/레벨)로 쓰이므로 직전 세트 값을 그대로 이어받는다.
+        val defaultWeight = lastSet?.weight ?: if (isTime) 0.0 else card.exercise.currentTargetWeight
         val defaultReps = lastSet?.reps ?: card.exercise.minReps
         viewModelScope.launch {
             repository.saveSet(
