@@ -23,4 +23,7 @@ interface RoutineExerciseDao {
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertAll(entries: List<RoutineExercise>)
+
+    @Query("DELETE FROM routine_exercise WHERE routineId = :routineId")
+    suspend fun deleteForRoutine(routineId: Long)
 }
