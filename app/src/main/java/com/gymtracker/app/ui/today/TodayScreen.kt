@@ -201,6 +201,18 @@ private fun CardList(
     val swipeAccum = remember { mutableFloatStateOf(0f) }
     val swipeThresholdPx = with(LocalDensity.current) { 64.dp.toPx() }
 
+    LazyColumn(
+        state = listState,
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 12.dp)
+            .pointerInput(Unit) {
+                detectHorizontalDragGestures(
+                    onDragStart = { swipeAccum.value = 0f },
+                    onDragEnd = {
+                      
+    )
+
   
 
 
