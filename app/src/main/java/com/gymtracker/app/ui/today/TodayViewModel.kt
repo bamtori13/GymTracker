@@ -111,6 +111,20 @@ class TodayViewModel(
         )
     }
 
+    /**
+     * 드래그로 카드를 옮긴다. 화면에는 즉시 반영하고(옮기는 중 끌림 없이 보이도록),
+     * DB에는 새 순서를 sortOrder로 다시 매겨 저장한다.
+     */
+    fun moveCard(fromIndex: Int, toIndex: Int) {
+        val cards = _uiState.value.cards
+        if (fromIndex !in cards.indices || toIndex !in cards.indices || fromIndex == toIndex) return
+        val reordered = cards.toMutableList().apply { add(toIndex, removeAt(fromIndex)) }
+        _uiState.value = _uiState.value.copy(cards = reordered)
+        viewModelScope.launch {
+            repository.reorderSessionExercises(reordered.map { it.sessionExercise })
+        }
+    }
+
     fun removeCard(card: ExerciseCardUiState) {
         viewModelScope.launch {
             repository.removeExerciseFromSession(card.sessionExercise)
