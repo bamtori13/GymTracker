@@ -22,6 +22,9 @@ interface SessionExerciseDao {
     @Update
     suspend fun update(entry: SessionExercise)
 
+    @Update
+    suspend fun updateAll(entries: List<SessionExercise>)
+
     @Delete
     suspend fun delete(entry: SessionExercise)
 }
