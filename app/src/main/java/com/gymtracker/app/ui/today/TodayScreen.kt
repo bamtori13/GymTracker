@@ -173,6 +173,28 @@ private fun DateHeader(
     }
 }
 
+/**
+ * 카드 목록. 두 가지 제스처를 얹는다.
+ * - 가로 스와이프: 전날/다음날로 이동. LazyColumn은 세로만 먹으므로 가로 드래그는 여기서 가로챈다.
+ * - 카드 롱프레스 후 세로 드래그: 순서 변경. 손가락이 다른 카드 영역에 들어가는 순간 자리를 맞바꾸고,
+ *   바뀐 만큼 누적 오프셋을 보정해서 끌고 있는 카드가 손가락 아래에 계속 붙어 있게 한다.
+ */
+@Composable
+private fun CardList(
+    cards: List<ExerciseCardUiState>,
+    onSwipePrevious: () -> Unit,
+    onSwipeNext: () -> Unit,
+    onMove: (from: Int, to: Int) -> Unit,
+    onAddExerciseClick: () -> Unit,
+    onToggleExpand: (Long) -> Unit,
+    onRemove: (ExerciseCardUiState) -> Unit,
+    onAddSet: (ExerciseCardUiState) -> Unit,
+    onSetChanged: (ExerciseSet, Double, Int) -> Unit,
+    onSetToggle: (ExerciseSet) -> Unit,
+    onSetDelete: (ExerciseSet) -> Unit,
+    onMemoChanged: (ExerciseCardUiState, String) -> Unit
+) 
+
 @Composable
 private fun ExerciseCard(
     card: ExerciseCardUiState,
