@@ -5,6 +5,8 @@ import androidx.lifecycle.ViewModelProvider
 import com.gymtracker.app.data.repository.WorkoutRepository
 import com.gymtracker.app.ui.calendar.CalendarViewModel
 import com.gymtracker.app.ui.routine.RoutineViewModel
+import com.gymtracker.app.ui.settings.SettingsViewModel
+import com.gymtracker.app.ui.stats.StatsViewModel
 import com.gymtracker.app.ui.today.TodayViewModel
 
 /**
@@ -18,6 +20,8 @@ class ViewModelFactory(private val repository: WorkoutRepository) : ViewModelPro
             RoutineViewModel::class.java -> RoutineViewModel(repository) as T
             TodayViewModel::class.java -> TodayViewModel(repository) as T
             CalendarViewModel::class.java -> CalendarViewModel(repository) as T
+            StatsViewModel::class.java -> StatsViewModel(repository) as T
+            SettingsViewModel::class.java -> SettingsViewModel(repository) as T
             else -> throw IllegalArgumentException("Unknown ViewModel class: $modelClass")
         }
     }
