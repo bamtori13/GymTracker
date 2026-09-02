@@ -5,19 +5,24 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gymtracker.app.ui.theme.bodyPartColor
+import com.gymtracker.app.ui.util.matchesSearch
 import java.time.format.DateTimeFormatter
 import kotlin.math.abs
 
@@ -192,29 +197,96 @@ private fun BodyPartLegend(parts: List<String>) {
 
 // ---------------------------------------------------------------- 운동 선택
 
+/**
+ * 운동 선택 드롭다운. 칩을 옆으로 늘어놓으면 운동이 늘수록 못 찾으므로,
+ * 눌러서 펼치고 검색(초성 포함)으로 좁히는 방식으로 바꿨다.
+ */
 @Composable
 private fun ExercisePicker(
     trends: List<ExerciseTrend>,
     selectedId: Long?,
     onSelect: (Long) -> Unit
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        trends.forEach { trend ->
-            val color = bodyPartColor(trend.bodyPart)
-            FilterChip(
-                selected = trend.exerciseId == selectedId,
-                onClick = { onSelect(trend.exerciseId) },
-                label = { Text(trend.name) },
-                colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = color.copy(alpha = 0.22f),
-                    selectedLabelColor = color
+    var expanded by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val selected = trends.firstOrNull { it.exerciseId == selectedId }
+    val filtered = trends.filter { matchesSearch(it.name, query) }
+
+    Box(Modifier.fillMaxWidth()) {
+        OutlinedButton(
+            onClick = { expanded = true },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            selected?.let {
+                Box(
+                    Modifier
+                        .size(8.dp)
+                        .background(bodyPartColor(it.bodyPart), CircleShape)
                 )
+                Spacer(Modifier.width(6.dp))
+            }
+            Text(
+                selected?.name ?: "운동 선택",
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
             )
+            Text("▼", style = MaterialTheme.typography.labelMedium)
+        }
+
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false; query = "" },
+            modifier = Modifier.heightIn(max = 380.dp)
+        ) {
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                label = { Text("검색 (초성 가능)") },
+                singleLine = true,
+                modifier = Modifier
+                    .padding(horizontal = 12.dp, vertical = 4.dp)
+                    .onFocusChanged { if (it.isFocused) keyboardController?.show() }
+            )
+            if (filtered.isEmpty()) {
+                DropdownMenuItem(
+                    text = { Text("일치하는 운동이 없습니다", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    onClick = {},
+                    enabled = false
+                )
+            }
+            filtered.forEach { trend ->
+                val color = bodyPartColor(trend.bodyPart)
+                DropdownMenuItem(
+                    text = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                Modifier
+                                    .size(8.dp)
+                                    .background(color, CircleShape)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                trend.name,
+                                fontWeight = if (trend.exerciseId == selectedId) FontWeight.Bold
+                                else FontWeight.Normal
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                "${trend.bodyPart} · ${trend.points.size}회",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    },
+                    onClick = {
+                        onSelect(trend.exerciseId)
+                        expanded = false
+                        query = ""
+                    }
+                )
+            }
         }
     }
 }
