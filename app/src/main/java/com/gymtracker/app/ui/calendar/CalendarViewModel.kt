@@ -55,6 +55,16 @@ class CalendarViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     @OptIn(ExperimentalCoroutinesApi::class)
+        val periodDates: StateFlow<Set<LocalDate>> = _month
+        .flatMapLatest { ym ->
+            repository.observePeriodDaysInRange(
+                ym.atDay(1).minusDays(7).toEpochDay(),
+                ym.atEndOfMonth().plusDays(7).toEpochDay()
+            ).map { days -> days.map { LocalDate.ofEpochDay(it.dateEpochDay) }.toSet() }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+
+    @OptIn(ExperimentalCoroutinesApi::class)
     val summaries: StateFlow<List<BodyPartSummary>> = _month
         .flatMapLatest { ym ->
             val stats = repository.observeBodyPartMonthStats(
