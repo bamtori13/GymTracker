@@ -34,6 +34,7 @@ data class TodayUiState(
     val date: LocalDate = LocalDate.now(),
     val sessionId: Long? = null,
     val cards: List<ExerciseCardUiState> = emptyList(),
+    val isPeriod: Boolean = false,
     val isLoading: Boolean = true
 )
 
@@ -75,41 +76,43 @@ class TodayViewModel(
         )
     }
 
+    /** 운동을 추가하면 직전에 이 운동을 한 날의 세트/메모를 그대로 끌어온다. */
     fun addExerciseToToday(exerciseId: Long) {
         val sessionId = _uiState.value.sessionId ?: return
+        val epochDay = _uiState.value.date.toEpochDay()
         viewModelScope.launch {
-            repository.addExerciseToSession(sessionId, exerciseId)
-            ensureFirstSet(sessionId, exerciseId)
+            repository.addExerciseCopyingPrevious(sessionId, exerciseId, epochDay)
             refreshCards()
         }
     }
 
     fun addRoutineToToday(routineId: Long) {
         val sessionId = _uiState.value.sessionId ?: return
+        val epochDay = _uiState.value.date.toEpochDay()
         viewModelScope.launch {
-            repository.addRoutineToSession(sessionId, routineId)
-            repository.observeSessionExercises(sessionId).first()
-                .forEach { ensureFirstSet(sessionId, it.exerciseId) }
+            repository.getExercisesForRoutine(routineId).forEach { exercise ->
+                repository.addExerciseCopyingPrevious(sessionId, exercise.id, epochDay)
+            }
             refreshCards()
         }
     }
 
-    /** 운동을 오늘에 처음 추가했을 때 입력 칸이 아예 없으면 1세트를 기본으로 만들어 준다. */
-    private suspend fun ensureFirstSet(sessionId: Long, exerciseId: Long) {
-        if (repository.getSetsForExerciseInSession(exerciseId, sessionId).isNotEmpty()) return
-        val exercise = repository.getExercise(exerciseId) ?: return
-        val isTime = exercise.inputType == ExerciseInputType.TIME
-        repository.saveSet(
-            ExerciseSet(
-                sessionId = sessionId,
-                exerciseId = exerciseId,
-                setNumber = 1,
-                // 시간 기반 운동은 weight 칸이 "강도"라서 목표중량을 쓰지 않고 0에서 시작한다.
-                weight = if (isTime) 0.0 else exercise.currentTargetWeight,
-                reps = exercise.minReps,
-                isCompleted = false
-            )
-        )
+    /** 오늘 화면에 올려둔 운동들을 그 순서대로 새 루틴으로 저장한다. */
+    fun saveTodayAsRoutine(name: String, onSaved: () -> Unit = {}) {
+        val exerciseIds = _uiState.value.cards.map { it.exercise.id }
+        if (name.isBlank() || exerciseIds.isEmpty()) return
+        viewModelScope.launch {
+            repository.createRoutine(name.trim(), exerciseIds)
+            onSaved()
+        }
+    }
+
+    fun togglePeriod() {
+        val epochDay = _uiState.value.date.toEpochDay()
+        viewModelScope.launch {
+            repository.togglePeriod(epochDay)
+            _uiState.value = _uiState.value.copy(isPeriod = repository.isPeriod(epochDay))
+        }
     }
 
     /**
@@ -229,6 +232,10 @@ class TodayViewModel(
             )
         }
 
-        _uiState.value = _uiState.value.copy(cards = cards, isLoading = false)
+        _uiState.value = _uiState.value.copy(
+            cards = cards,
+            isPeriod = repository.isPeriod(date.toEpochDay()),
+            isLoading = false
+        )
     }
 }
