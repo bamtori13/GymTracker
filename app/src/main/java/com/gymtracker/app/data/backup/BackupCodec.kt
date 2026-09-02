@@ -3,6 +3,7 @@ package com.gymtracker.app.data.backup
 import com.gymtracker.app.data.local.entity.Exercise
 import com.gymtracker.app.data.local.entity.ExerciseInputType
 import com.gymtracker.app.data.local.entity.ExerciseSet
+import com.gymtracker.app.data.local.entity.PeriodDay
 import com.gymtracker.app.data.local.entity.RoutineExercise
 import com.gymtracker.app.data.local.entity.SessionExercise
 import com.gymtracker.app.data.local.entity.WorkoutRoutine
@@ -17,7 +18,8 @@ data class BackupData(
     val routineExercises: List<RoutineExercise>,
     val sessions: List<WorkoutSession>,
     val sessionExercises: List<SessionExercise>,
-    val sets: List<ExerciseSet>
+    val sets: List<ExerciseSet>,
+    val periodDays: List<PeriodDay>
 )
 
 /**
@@ -38,6 +40,7 @@ object BackupCodec {
         root.put("sessions", data.sessions.toJsonArray(::sessionToJson))
         root.put("sessionExercises", data.sessionExercises.toJsonArray(::sessionExerciseToJson))
         root.put("sets", data.sets.toJsonArray(::setToJson))
+        root.put("periodDays", data.periodDays.toJsonArray(::periodDayToJson))
         return root.toString(2)
     }
 
@@ -49,7 +52,9 @@ object BackupCodec {
             routineExercises = root.mapArray("routineExercises", ::jsonToRoutineExercise),
             sessions = root.mapArray("sessions", ::jsonToSession),
             sessionExercises = root.mapArray("sessionExercises", ::jsonToSessionExercise),
-            sets = root.mapArray("sets", ::jsonToSet)
+            sets = root.mapArray("sets", ::jsonToSet),
+            // version 1 백업에는 없던 항목이므로 없으면 빈 목록.
+            periodDays = root.mapArray("periodDays", ::jsonToPeriodDay)
         )
     }
 
@@ -152,6 +157,14 @@ object BackupCodec {
         weight = o.optDouble("weight", 0.0),
         reps = o.optInt("reps", 0),
         isCompleted = o.optBoolean("isCompleted", false)
+    )
+
+    private fun periodDayToJson(p: PeriodDay) = JSONObject().apply {
+        put("dateEpochDay", p.dateEpochDay)
+    }
+
+    private fun jsonToPeriodDay(o: JSONObject) = PeriodDay(
+        dateEpochDay = o.getLong("dateEpochDay")
     )
 
     // --- helpers ---
