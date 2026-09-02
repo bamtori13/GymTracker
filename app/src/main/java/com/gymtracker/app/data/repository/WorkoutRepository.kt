@@ -11,6 +11,7 @@ import com.gymtracker.app.data.local.dao.DayBodyPart
 import com.gymtracker.app.data.local.dao.SetHistoryRow
 import com.gymtracker.app.data.local.entity.Exercise
 import com.gymtracker.app.data.local.entity.ExerciseSet
+import com.gymtracker.app.data.local.entity.PeriodDay
 import com.gymtracker.app.data.local.entity.RoutineExercise
 import com.gymtracker.app.data.local.entity.SessionExercise
 import com.gymtracker.app.data.local.entity.WorkoutRoutine
@@ -44,6 +45,10 @@ class WorkoutRepository(private val db: AppDatabase) {
 
     fun observeExercisesForRoutine(routineId: Long): Flow<List<Exercise>> =
         db.routineExerciseDao().observeExercisesForRoutine(routineId)
+
+    /** 루틴에 든 운동을 한 번만 읽어온다 (오늘 화면에 루틴을 펼쳐 넣을 때). */
+    suspend fun getExercisesForRoutine(routineId: Long): List<Exercise> =
+        db.routineExerciseDao().observeExercisesForRoutine(routineId).first()
 
     // --- Exercise (전역 카탈로그) ---
     fun observeAllExercises(): Flow<List<Exercise>> = db.exerciseDao().observeAll()
@@ -101,6 +106,24 @@ class WorkoutRepository(private val db: AppDatabase) {
     fun observeBodyPartLastDays(): Flow<List<BodyPartLastDay>> =
         db.sessionDao().observeBodyPartLastDays()
 
+    // --- 생리일 ---
+    fun observeIsPeriod(dateEpochDay: Long): Flow<Boolean> =
+        db.periodDayDao().observeIsPeriod(dateEpochDay)
+
+    fun observePeriodDaysInRange(fromEpochDay: Long, toEpochDay: Long): Flow<List<PeriodDay>> =
+        db.periodDayDao().observeInRange(fromEpochDay, toEpochDay)
+
+    suspend fun isPeriod(dateEpochDay: Long): Boolean = db.periodDayDao().isPeriod(dateEpochDay)
+
+    /** 체크되어 있으면 끄고, 없으면 켠다. */
+    suspend fun togglePeriod(dateEpochDay: Long) {
+        if (db.periodDayDao().isPeriod(dateEpochDay)) {
+            db.periodDayDao().delete(dateEpochDay)
+        } else {
+            db.periodDayDao().insert(PeriodDay(dateEpochDay))
+        }
+    }
+
     // --- SessionExercise ---
     fun observeSessionExercises(sessionId: Long): Flow<List<SessionExercise>> =
         db.sessionExerciseDao().observeForSession(sessionId)
@@ -111,9 +134,55 @@ class WorkoutRepository(private val db: AppDatabase) {
         db.sessionExerciseDao().insert(SessionExercise(sessionId = sessionId, exerciseId = exerciseId, sortOrder = order))
     }
 
-    suspend fun addRoutineToSession(sessionId: Long, routineId: Long) {
-        val exercises = db.routineExerciseDao().observeExercisesForRoutine(routineId).first()
-        exercises.forEach { addExerciseToSession(sessionId, it.id) }
+    /**
+     * 오늘에 운동을 추가하면서 직전에 이 운동을 했던 날의 기록(세트 구성 + 메모)을 그대로 복사한다.
+     * 완료 체크만 풀어서 넣는다 — 지난번 값이 "오늘의 목표"로 깔리고, 실제로 한 것만 다시 체크하면 된다.
+     * 이미 오늘에 있는 운동이면 아무것도 하지 않는다(중복 추가로 기록을 덮어쓰지 않도록).
+     */
+    suspend fun addExerciseCopyingPrevious(sessionId: Long, exerciseId: Long, dateEpochDay: Long) {
+        if (db.sessionExerciseDao().find(sessionId, exerciseId) != null) return
+        addExerciseToSession(sessionId, exerciseId)
+        val entry = db.sessionExerciseDao().find(sessionId, exerciseId) ?: return
+
+        val previous = db.sessionDao().getLastSessionWithExerciseBefore(exerciseId, dateEpochDay)
+        val previousSets = previous
+            ?.let { db.exerciseSetDao().getSetsForExerciseInSession(exerciseId, it.id) }
+            .orEmpty()
+
+        if (previousSets.isEmpty()) {
+            // 처음 하는 운동(또는 지난번에 세트를 안 넣은 경우) — 빈 1세트만 만들어 준다.
+            insertDefaultFirstSet(sessionId, exerciseId)
+            return
+        }
+
+        previous?.let { prev ->
+            val previousMemo = db.sessionExerciseDao().find(prev.id, exerciseId)?.memo ?: ""
+            if (previousMemo.isNotBlank()) {
+                db.sessionExerciseDao().update(entry.copy(memo = previousMemo))
+            }
+        }
+        previousSets.forEach { set ->
+            // id = 0 이어야 새 행으로 들어간다.
+            db.exerciseSetDao().upsert(set.copy(id = 0, sessionId = sessionId, isCompleted = false))
+        }
+    }
+
+    /** 세트가 하나도 없을 때 깔아주는 기본 1세트. */
+    suspend fun insertDefaultFirstSet(sessionId: Long, exerciseId: Long) {
+        if (db.exerciseSetDao().getSetsForExerciseInSession(exerciseId, sessionId).isNotEmpty()) return
+        val exercise = db.exerciseDao().getById(exerciseId) ?: return
+        val isTime = exercise.inputType == com.gymtracker.app.data.local.entity.ExerciseInputType.TIME
+        db.exerciseSetDao().upsert(
+            ExerciseSet(
+                sessionId = sessionId,
+                exerciseId = exerciseId,
+                setNumber = 1,
+                // 시간 기반 운동은 weight 칸이 "강도"라서 목표중량을 쓰지 않고 0에서 시작한다.
+                weight = if (isTime) 0.0 else exercise.currentTargetWeight,
+                reps = exercise.minReps,
+                isCompleted = false
+            )
+        )
     }
 
     suspend fun removeExerciseFromSession(entry: SessionExercise) = db.sessionExerciseDao().delete(entry)
@@ -155,7 +224,8 @@ class WorkoutRepository(private val db: AppDatabase) {
             routineExercises = db.routineExerciseDao().getAll(),
             sessions = db.sessionDao().getAll(),
             sessionExercises = db.sessionExerciseDao().getAll(),
-            sets = db.exerciseSetDao().getAll()
+            sets = db.exerciseSetDao().getAll(),
+            periodDays = db.periodDayDao().getAll()
         )
     )
 
@@ -173,6 +243,7 @@ class WorkoutRepository(private val db: AppDatabase) {
             db.sessionDao().deleteAll()
             db.routineDao().deleteAll()
             db.exerciseDao().deleteAll()
+            db.periodDayDao().deleteAll()
 
             db.exerciseDao().restoreAll(data.exercises)
             db.routineDao().restoreAll(data.routines)
@@ -180,6 +251,7 @@ class WorkoutRepository(private val db: AppDatabase) {
             db.routineExerciseDao().restoreAll(data.routineExercises)
             db.sessionExerciseDao().restoreAll(data.sessionExercises)
             db.exerciseSetDao().restoreAll(data.sets)
+            db.periodDayDao().restoreAll(data.periodDays)
         }
     }
 }
