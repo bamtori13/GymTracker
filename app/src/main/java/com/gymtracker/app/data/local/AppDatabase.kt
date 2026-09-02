@@ -7,12 +7,14 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import com.gymtracker.app.data.local.dao.ExerciseDao
 import com.gymtracker.app.data.local.dao.ExerciseSetDao
+import com.gymtracker.app.data.local.dao.PeriodDayDao
 import com.gymtracker.app.data.local.dao.RoutineDao
 import com.gymtracker.app.data.local.dao.RoutineExerciseDao
 import com.gymtracker.app.data.local.dao.SessionDao
 import com.gymtracker.app.data.local.dao.SessionExerciseDao
 import com.gymtracker.app.data.local.entity.Exercise
 import com.gymtracker.app.data.local.entity.ExerciseSet
+import com.gymtracker.app.data.local.entity.PeriodDay
 import com.gymtracker.app.data.local.entity.PersonalRecord
 import com.gymtracker.app.data.local.entity.RoutineExercise
 import com.gymtracker.app.data.local.entity.SessionExercise
@@ -27,9 +29,10 @@ import com.gymtracker.app.data.local.entity.WorkoutSession
         SessionExercise::class,
         ExerciseSet::class,
         PersonalRecord::class,
-        RoutineExercise::class
+        RoutineExercise::class,
+        PeriodDay::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -41,6 +44,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun sessionDao(): SessionDao
     abstract fun sessionExerciseDao(): SessionExerciseDao
     abstract fun exerciseSetDao(): ExerciseSetDao
+    abstract fun periodDayDao(): PeriodDayDao
 
     companion object {
         @Volatile
