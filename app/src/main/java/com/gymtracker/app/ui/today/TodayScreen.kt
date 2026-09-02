@@ -999,4 +999,46 @@ private fun ExerciseListContent(
         )
     }
 }
+/** 오늘 구성을 루틴으로 저장할 때 이름만 받는 팝업. */
+@Composable
+private fun SaveRoutineDialog(
+    initialName: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    var name by remember { mutableStateOf(initialName) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("루틴으로 저장") },
+        text = {
+            Column {
+                Text(
+                    "지금 오늘 화면에 있는 운동들이 그 순서대로 새 루틴이 됩니다.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(8.dp))
+                AppTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("루틴이름") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(name.trim()) }, enabled = name.isNotBlank()) {
+                Text("저장")
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("취소") } }
+    )
+}
 
+/** "가슴·등 9/2"처럼 오늘 한 부위와 날짜로 기본 이름을 만들어 준다. */
+private fun suggestRoutineName(state: TodayUiState): String {
+    val parts = state.cards.map { it.exercise.bodyPart }.distinct().take(3)
+    val date = state.date.format(DateTimeFormatter.ofPattern("M/d"))
+    return if (parts.isEmpty()) date else "${parts.joinToString("·")} $date"
+}
