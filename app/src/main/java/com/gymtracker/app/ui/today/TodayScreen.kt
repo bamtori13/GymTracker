@@ -158,10 +158,12 @@ fun TodayScreen(
 @Composable
 private fun DateHeader(
     date: LocalDate,
+    isPeriod: Boolean,
     onPrevious: () -> Unit,
     onNext: () -> Unit,
     onDateClick: () -> Unit,
-    onTodayClick: () -> Unit
+    onTodayClick: () -> Unit,
+    onPeriodToggle: () -> Unit
 ) {
     val formatter = remember { DateTimeFormatter.ofPattern("M/d") }
     val dayOfWeek = date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.KOREAN)
@@ -169,26 +171,53 @@ private fun DateHeader(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center
+            .padding(start = 8.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        IconButton(onClick = onPrevious) {
-            Icon(Icons.Filled.KeyboardArrowLeft, contentDescription = "전날")
+        // 날짜 이동 묶음은 가운데, 생리일 버튼은 우측 상단 고정.
+        Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            IconButton(onClick = onPrevious) {
+                Icon(Icons.Filled.KeyboardArrowLeft, contentDescription = "전날")
+            }
+            TextButton(onClick = onDateClick) {
+                Text(
+                    "${date.format(formatter)} ($dayOfWeek)",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            if (date != LocalDate.now()) {
+                AssistChip(onClick = onTodayClick, label = { Text("오늘") })
+            }
+            IconButton(onClick = onNext) {
+                Icon(Icons.Filled.KeyboardArrowRight, contentDescription = "다음날")
+            }
         }
-        TextButton(onClick = onDateClick) {
-            Text(
-                "${date.format(formatter)} ($dayOfWeek)",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-        }
-        if (date != LocalDate.now()) {
-            AssistChip(onClick = onTodayClick, label = { Text("오늘") })
-        }
-        IconButton(onClick = onNext) {
-            Icon(Icons.Filled.KeyboardArrowRight, contentDescription = "다음날")
-        }
+        PeriodToggleButton(isPeriod = isPeriod, onClick = onPeriodToggle)
+    }
+}
+
+/** 생리일 체크 버튼. 켜져 있으면 달력 점과 같은 색으로 채워진다. */
+@Composable
+private fun PeriodToggleButton(isPeriod: Boolean, onClick: () -> Unit) {
+    IconButton(onClick = onClick) {
+        Box(
+            Modifier
+                .size(16.dp)
+                .background(
+                    if (isPeriod) PeriodColor else Color.Transparent,
+                    CircleShape
+                )
+                .border(
+                    1.5.dp,
+                    if (isPeriod) PeriodColor else MaterialTheme.colorScheme.outline,
+                    CircleShape
+                )
+        )
     }
 }
 
@@ -211,7 +240,8 @@ private fun CardList(
     onSetChanged: (ExerciseSet, Double, Int) -> Unit,
     onSetToggle: (ExerciseSet) -> Unit,
     onSetDelete: (ExerciseSet) -> Unit,
-    onMemoChanged: (ExerciseCardUiState, String) -> Unit
+    onMemoChanged: (ExerciseCardUiState, String) -> Unit,
+    onSaveRoutineClick: () -> Unit
 ) {
     val listState = rememberLazyListState()
     // -1 = 끌고 있는 카드 없음. dragOffset은 끌기 시작한 자리에서 누적된 y 이동량(px).
@@ -301,6 +331,16 @@ private fun CardList(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text("+ 운동추가")
+            }
+            // 오늘 구성을 그대로 루틴으로 굳혀두는 버튼. 운동이 하나도 없으면 의미가 없어서 숨긴다.
+            if (cards.isNotEmpty()) {
+                Spacer(Modifier.height(6.dp))
+                TextButton(
+                    onClick = onSaveRoutineClick,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("오늘 운동을 루틴으로 저장 (${cards.size}개)")
+                }
             }
             Spacer(Modifier.height(8.dp))
         }
