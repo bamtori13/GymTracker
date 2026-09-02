@@ -21,3 +21,5 @@ private val FallbackBodyPartColor = Color(0xFF757575)
 
 fun bodyPartColor(bodyPart: String): Color =
     BODY_PART_COLORS[bodyPart] ?: FallbackBodyPartColor
+/** 생리일 표시 색. 오늘 화면 버튼과 달력 점이 같은 색을 쓴다. */
+val PeriodColor = Color(0xFFE91E63)
