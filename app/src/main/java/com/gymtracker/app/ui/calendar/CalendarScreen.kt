@@ -21,6 +21,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.gymtracker.app.ui.theme.PeriodColor
 import com.gymtracker.app.ui.theme.bodyPartColor
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -39,6 +40,7 @@ fun CalendarScreen(
     val month by calendarViewModel.month.collectAsState()
     val bodyPartsByDate by calendarViewModel.bodyPartsByDate.collectAsState()
     val summaries by calendarViewModel.summaries.collectAsState()
+    val periodDates by calendarViewModel.periodDates.collectAsState()
     var showMonthPicker by remember { mutableStateOf(false) }
     val today = LocalDate.now()
 
@@ -60,6 +62,7 @@ fun CalendarScreen(
             month = month,
             today = today,
             bodyPartsByDate = bodyPartsByDate,
+            periodDates = periodDates,
             onDateClick = onDatePicked
         )
         Spacer(Modifier.height(12.dp))
@@ -145,6 +148,7 @@ private fun MonthGrid(
     month: YearMonth,
     today: LocalDate,
     bodyPartsByDate: Map<LocalDate, List<String>>,
+    periodDates: Set<LocalDate>,
     onDateClick: (LocalDate) -> Unit
 ) {
     // 그리드 첫 칸은 1일이 속한 주의 월요일. 그 뒤로 7칸씩 끊어서 이번 달이 다 들어갈 만큼만 그린다.
@@ -163,6 +167,7 @@ private fun MonthGrid(
                         inMonth = YearMonth.from(date) == month,
                         isToday = date == today,
                         bodyParts = bodyPartsByDate[date].orEmpty(),
+                        isPeriod = date in periodDates,
                         onClick = { onDateClick(date) },
                         modifier = Modifier.weight(1f)
                     )
@@ -184,6 +189,7 @@ private fun DayCell(
     inMonth: Boolean,
     isToday: Boolean,
     bodyParts: List<String>,
+    isPeriod: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -210,11 +216,25 @@ private fun DayCell(
             .padding(top = 3.dp, start = 1.dp, end = 1.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(
-            date.dayOfMonth.toString(),
-            style = MaterialTheme.typography.labelLarge,
-            color = dayColor
-        )
+        // 생리일이면 날짜 옆에 빨간 점.
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                date.dayOfMonth.toString(),
+                style = MaterialTheme.typography.labelLarge,
+                color = dayColor
+            )
+            if (isPeriod) {
+                Spacer(Modifier.width(2.dp))
+                Box(
+                    Modifier
+                        .size(5.dp)
+                        .background(
+                            PeriodColor.copy(alpha = if (inMonth) 1f else 0.35f),
+                            CircleShape
+                        )
+                )
+            }
+        }
         Spacer(Modifier.height(2.dp))
         bodyParts.take(MAX_PART_LABELS).forEach { part ->
             val color = bodyPartColor(part)
