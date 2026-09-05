@@ -119,7 +119,7 @@ fun TodayScreen(
             onPick = { picked ->
                 todayViewModel.loadDate(picked)
                 showCalendar = false
-              }
+            }
         )
     }
 
@@ -314,7 +314,7 @@ private fun CardList(
                             val center = current.offset + current.size / 2f + dragOffset
                             val target = visible.firstOrNull {
                                 it.index != from && it.index < cardCount &&
-                                    center >= it.offset && center <= it.offset + it.size
+                                        center >= it.offset && center <= it.offset + it.size
                             } ?: return@detectDragGesturesAfterLongPress
                             // 자리가 바뀌면 카드가 순간이동하므로, 그만큼 오프셋을 빼서 손가락 아래에 유지한다.
                             dragOffset -= (target.offset - current.offset)
@@ -398,7 +398,7 @@ private fun ExerciseCard(
             // 요약은 접혀 있을 때도 항상 보인다 — 접힌 카드만 보고도 진행 상황을 알 수 있게.
             Text(
                 "계획 ${fmt(card.planTotal)}$unit · 오늘 ${fmt(card.todayTotal)}$unit · " +
-                    "직전 ${fmt(card.previousTotal)}$unit · PR ${card.prValue?.let { "${fmt(it)}$unit" } ?: "-"}",
+                        "직전 ${fmt(card.previousTotal)}$unit · PR ${card.prValue?.let { "${fmt(it)}$unit" } ?: "-"}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -901,7 +901,7 @@ private fun ExerciseListContent(
 
     val filtered = exercises.filter { ex ->
         (selectedBodyPart == "전체" || ex.bodyPart == selectedBodyPart) &&
-            matchesSearch(ex.name, query)
+                matchesSearch(ex.name, query)
     }
 
     Column {
@@ -999,6 +999,197 @@ private fun ExerciseListContent(
         )
     }
 }
+
+
+
+
+/**
+ * 새 루틴 만들기 화면: 루틴이름 / 운동검색 / 부위선택 / 체크박스 운동목록.
+ * 3) 버그 수정: Row의 clickable과 Checkbox의 onCheckedChange가 동시에 토글을 실행해서
+ *    탭 위치에 따라 두 번 토글(선택→즉시 해제)되던 문제. Checkbox는 표시 전용(onCheckedChange = null)으로
+ *    바꾸고, 토글은 Row의 clickable 한 곳에서만 처리한다.
+ */
+@Composable
+private fun RoutineFormContent(
+    allExercises: List<Exercise>,
+    confirmLabel: String,
+    initialName: String = "",
+    initialCheckedIds: List<Long> = emptyList(),
+    onConfirm: (name: String, exerciseIds: List<Long>) -> Unit
+) {
+    var routineName by remember(initialName) { mutableStateOf(initialName) }
+    var query by remember { mutableStateOf("") }
+    var selectedBodyPart by remember { mutableStateOf("전체") }
+    val bodyParts = remember(allExercises) { listOf("전체") + allExercises.map { it.bodyPart }.distinct() }
+    val checked = remember(initialCheckedIds) { mutableStateListOf(*initialCheckedIds.toTypedArray()) }
+    val checklistState = rememberLazyListState()
+    // 편집 진입 시점의 선택 목록. 이걸로만 정렬해서, 편집 중 체크를 껐다 켤 때
+    // 목록 순서가 튀지 않게 한다(현재 checked로 정렬하면 누를 때마다 항목이 이동한다).
+    val initiallyChecked = remember(initialCheckedIds) { initialCheckedIds.toSet() }
+
+    val filtered = allExercises
+        .filter { ex ->
+            (selectedBodyPart == "전체" || ex.bodyPart == selectedBodyPart) &&
+                    matchesSearch(ex.name, query)
+        }
+        // 기존에 루틴에 들어 있던 운동을 맨 위로.
+        .sortedByDescending { it.id in initiallyChecked }
+
+    fun toggle(id: Long) {
+        if (checked.contains(id)) checked.remove(id) else checked.add(id)
+    }
+
+    // heightIn(max)만 걸고 목록에 고정 높이를 주면 내용 합이 최대치를 넘어 "만들기" 버튼이
+    // 팝업 밖으로 잘려 나간다. 높이를 채운 Column에서 목록만 weight로 늘려 버튼을 항상 아래에 붙인다.
+    Column(Modifier.fillMaxHeight()) {
+        AppTextField(
+            value = routineName,
+            onValueChange = { routineName = it },
+            label = { Text("루틴이름") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(Modifier.height(8.dp))
+        AppTextField(
+            value = query,
+            onValueChange = { query = it },
+            label = { Text("운동검색 (초성 가능)") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(Modifier.height(8.dp))
+        BodyPartChipRow(
+            parts = bodyParts,
+            selected = selectedBodyPart,
+            onSelect = { selectedBodyPart = it }
+        )
+        Spacer(Modifier.height(8.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+        ) {
+            LazyColumn(
+                state = checklistState,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+            ) {
+                items(filtered, key = { it.id }) { ex ->
+                    val isChecked = checked.contains(ex.id)
+                    Column {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { toggle(ex.id) }
+                                .padding(end = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // onCheckedChange = null → 체크박스는 표시 전용, 실제 토글은 Row의 clickable 하나로만 처리.
+                            Checkbox(checked = isChecked, onCheckedChange = null)
+                            Text(
+                                ex.name,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                            BodyPartBadge(ex.bodyPart)
+                        }
+                        RowDivider()
+                    }
+                }
+            }
+            SimpleVerticalScrollbar(
+                listState = checklistState,
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .padding(start = 2.dp)
+            )
+        }
+        Spacer(Modifier.height(12.dp))
+        val canCreate = routineName.isNotBlank() && checked.isNotEmpty()
+        Button(
+            onClick = { onConfirm(routineName.trim(), checked.toList()) },
+            enabled = canCreate,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("$confirmLabel (${checked.size}개 운동)")
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CalendarPickerDialog(
+    initialDate: LocalDate,
+    onDismiss: () -> Unit,
+    onPick: (LocalDate) -> Unit
+) {
+    val zone = ZoneId.systemDefault()
+    val initialMillis = initialDate.atStartOfDay(zone).toInstant().toEpochMilli()
+    val state = rememberDatePickerState(initialSelectedDateMillis = initialMillis)
+
+    DatePickerDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = {
+                val millis = state.selectedDateMillis
+                if (millis != null) {
+                    val picked = java.time.Instant.ofEpochMilli(millis).atZone(ZoneId.of("UTC")).toLocalDate()
+                    onPick(picked)
+                } else {
+                    onDismiss()
+                }
+            }) { Text("선택") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("취소") }
+        }
+    ) {
+        DatePicker(state = state)
+    }
+}
+
+private fun fmt(value: Double): String =
+    if (value == value.toLong().toDouble()) value.toLong().toString() else "%.1f".format(value)
+
+private fun trimNumber(value: Double): String =
+    if (value == value.toLong().toDouble()) value.toLong().toString() else value.toString()
+
+/**
+ * 3) LazyColumn 옆에 붙여서 스크롤 위치/비율을 얇은 막대로 보여준다.
+ * Compose(Material3)에는 Android용 기본 스크롤바 컴포넌트가 없어서 직접 그린다.
+ * 목록이 한 화면에 다 들어오면(스크롤 필요 없으면) 아무것도 그리지 않는다.
+ */
+@Composable
+private fun SimpleVerticalScrollbar(
+    listState: LazyListState,
+    modifier: Modifier = Modifier
+) {
+    val layoutInfo = listState.layoutInfo
+    val totalItems = layoutInfo.totalItemsCount
+    val visibleCount = layoutInfo.visibleItemsInfo.size
+    if (totalItems == 0 || visibleCount >= totalItems) return
+
+    val thumbFraction = (visibleCount.toFloat() / totalItems).coerceIn(0.08f, 1f)
+    val topFraction = (listState.firstVisibleItemIndex.toFloat() / totalItems).coerceIn(0f, 1f - thumbFraction)
+
+    BoxWithConstraints(
+        modifier = modifier
+            .fillMaxHeight()
+            .width(4.dp)
+    ) {
+        val trackHeight = maxHeight
+        Box(
+            modifier = Modifier
+                .offset(y = trackHeight * topFraction)
+                .height(trackHeight * thumbFraction)
+                .width(4.dp)
+                .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(2.dp))
+        )
+    }
+}
+
 /** 오늘 구성을 루틴으로 저장할 때 이름만 받는 팝업. */
 @Composable
 private fun SaveRoutineDialog(
