@@ -15,7 +15,7 @@ data class BodyPartMonthStat(
     /** 완료 세트의 무게×횟수 합 (중량 운동만). */
     val totalVolume: Double,
     /** 완료 세트의 시간 합 (시간 기반 운동만, 분). */
-    val totalSeconds: Int
+    val totalMinutes: Int
 )
 
 /** 부위별 "마지막으로 한 날" (기간 제한 없음). 경과일 계산용. */
@@ -62,7 +62,7 @@ interface SessionDao {
             "COALESCE(SUM(CASE WHEN es.isCompleted = 1 AND e.inputType = 'WEIGHT_REPS' " +
             "THEN es.weight * es.reps ELSE 0 END), 0) AS totalVolume, " +
             "COALESCE(SUM(CASE WHEN es.isCompleted = 1 AND e.inputType = 'TIME' " +
-            "THEN es.reps ELSE 0 END), 0) AS totalSeconds " +
+            "THEN es.reps ELSE 0 END), 0) AS totalMinutes " +
             "FROM session_exercise se " +
             "INNER JOIN workout_session s ON s.id = se.sessionId " +
             "INNER JOIN exercise e ON e.id = se.exerciseId " +
