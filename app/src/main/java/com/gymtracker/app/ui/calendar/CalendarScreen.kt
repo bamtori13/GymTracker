@@ -433,7 +433,7 @@ private fun SummaryRow(summary: BodyPartSummary) {
 private fun totalLabel(summary: BodyPartSummary): String {
     val parts = buildList {
         if (summary.totalVolume > 0) add("${fmt(summary.totalVolume)}kg")
-        if (summary.totalSeconds > 0) add("${summary.totalSeconds / 60}분")
+        if (summary.totalMinutes > 0) add("${summary.totalMinutes}분")
     }
     return if (parts.isEmpty()) "-" else parts.joinToString(" · ")
 }
