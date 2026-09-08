@@ -386,7 +386,7 @@ private fun OneRepMaxCard(trend: ExerciseTrend) {
 @Composable
 private fun SessionVolumeCard(trend: ExerciseTrend) {
     val max = trend.points.maxOfOrNull { it.volume } ?: 0.0
-    SectionCard(title = "세션별 볼륨", subtitle = if (trend.isTime) "합계 초" else "무게 × 횟수 합계") {
+    SectionCard(title = "세션별 볼륨", subtitle = if (trend.isTime) "합계 분" else "무게 × 횟수 합계") {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
