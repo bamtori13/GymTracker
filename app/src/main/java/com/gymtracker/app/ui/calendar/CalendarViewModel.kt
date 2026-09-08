@@ -24,8 +24,8 @@ data class BodyPartSummary(
     val sessionCount: Int,
     /** 이번 달 총 중량(무게×횟수 합). */
     val totalVolume: Double,
-    /** 이번 달 총 시간(초). 시간 기반 운동이 있을 때만 0보다 크다. */
-    val totalSeconds: Int,
+    /** 이번 달 총 시간(분). 시간 기반 운동이 있을 때만 0보다 크다. */
+    val totalMinutes: Int,
     /** 마지막으로 이 부위를 한 뒤 지난 날 수. 기록이 아예 없으면 null. */
     val daysSinceLast: Int?
 )
@@ -82,7 +82,7 @@ class CalendarViewModel(
                             bodyPart = part,
                             sessionCount = stat?.dayCount ?: 0,
                             totalVolume = stat?.totalVolume ?: 0.0,
-                            totalSeconds = stat?.totalSeconds ?: 0,
+                            totalMinutes = stat?.totalMinutes ?: 0,
                             daysSinceLast = lastByPart[part]?.let {
                                 ChronoUnit.DAYS.between(LocalDate.ofEpochDay(it), today).toInt()
                             }
