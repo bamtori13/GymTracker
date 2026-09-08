@@ -17,9 +17,9 @@ import java.time.temporal.ChronoUnit
 /** 한 날짜에 한 운동을 수행한 결과 요약. 그래프의 점 하나. */
 data class SessionPoint(
     val date: LocalDate,
-    /** 총량. 중량운동이면 Σ(무게×횟수), 시간운동이면 Σ(초). */
+    /** 총량. 중량운동이면 Σ(무게×횟수), 시간운동이면 Σ(분). */
     val volume: Double,
-    /** 그날의 최고 추정 1RM. 시간운동이면 그날 최장 시간(초). */
+    /** 그날의 최고 추정 1RM. 시간운동이면 그날 최장 시간(분). */
     val best: Double,
     val topWeight: Double,
     val setCount: Int
@@ -42,7 +42,7 @@ data class ExerciseTrend(
     val pr: Double,
     val verdict: OverloadVerdict
 ) {
-    val unit: String get() = if (isTime) "초" else "kg"
+    val unit: String get() = if (isTime) "분" else "kg"
 }
 
 /** 한 주의 총 볼륨 + 부위별 분해. 막대그래프 한 칸. */
@@ -184,10 +184,9 @@ class StatsViewModel(
             )
         }
     }
-
-    /** 시간운동의 초를 중량운동의 kg×회와 그냥 더하면 단위가 섞이니, 초는 1/10로 눌러서 합친다. */
+    /** 시간운동은 분을 그대로 더한다. 중량운동의 kg×회와 단위가 섞이지만 크기는 비슷한 범위다. */
     private fun volumeOf(row: SetHistoryRow): Double =
-        if (row.inputType == ExerciseInputType.TIME) row.reps / 10.0 else row.weight * row.reps
+        if (row.inputType == ExerciseInputType.TIME) row.reps.toDouble() else row.weight * row.reps
 
     private fun weekStartOf(date: LocalDate): LocalDate =
         date.minusDays(((date.dayOfWeek.value - DayOfWeek.MONDAY.value + 7) % 7).toLong())
