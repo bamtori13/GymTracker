@@ -47,6 +47,9 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun periodDayDao(): PeriodDayDao
 
     companion object {
+        /** @Database(version = ...)과 같은 값. 백업 매니페스트에 남겨 호환성을 판단하는 데 쓴다. */
+        const val SCHEMA_VERSION = 4
+        
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
