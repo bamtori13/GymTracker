@@ -25,7 +25,7 @@ data class ExerciseCardUiState(
     val todayTotal: Double,
     /** 직전수행총량: 이 운동이 포함된 가장 최근 이전 날짜 세션의 완료된 세트 합계. */
     val previousTotal: Double,
-    /** PR: WEIGHT_REPS면 역대 최고 중량, TIME이면 역대 최장 시간(초). 기록 없으면 null. */
+    /** PR: WEIGHT_REPS면 역대 최고 중량, TIME이면 역대 최장 시간(분). 기록 없으면 null. */
     val prValue: Double?,
     val isExpanded: Boolean = false
 )
