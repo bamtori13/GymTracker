@@ -14,7 +14,7 @@ data class BodyPartMonthStat(
     val dayCount: Int,
     /** 완료 세트의 무게×횟수 합 (중량 운동만). */
     val totalVolume: Double,
-    /** 완료 세트의 시간 합 (시간 기반 운동만, 초). */
+    /** 완료 세트의 시간 합 (시간 기반 운동만, 분). */
     val totalSeconds: Int
 )
 
