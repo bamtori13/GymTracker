@@ -2,6 +2,8 @@ package com.gymtracker.app.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import com.gymtracker.app.data.cloud.CloudBackupService
+import com.gymtracker.app.data.prefs.CloudPrefs
 import com.gymtracker.app.data.repository.WorkoutRepository
 import com.gymtracker.app.ui.calendar.CalendarViewModel
 import com.gymtracker.app.ui.routine.RoutineViewModel
@@ -13,7 +15,11 @@ import com.gymtracker.app.ui.today.TodayViewModel
  * DI 프레임워크(Hilt 등) 없이 Repository를 ViewModel에 주입하기 위한 최소 Factory.
  * 프로젝트가 커지면 Hilt로 교체 가능하도록 이 클래스만 격리해둔다.
  */
-class ViewModelFactory(private val repository: WorkoutRepository) : ViewModelProvider.Factory {
+class ViewModelFactory(
+    private val repository: WorkoutRepository,
+    private val cloudBackupService: CloudBackupService,
+    private val cloudPrefs: CloudPrefs
+) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         return when (modelClass) {
@@ -21,7 +27,8 @@ class ViewModelFactory(private val repository: WorkoutRepository) : ViewModelPro
             TodayViewModel::class.java -> TodayViewModel(repository) as T
             CalendarViewModel::class.java -> CalendarViewModel(repository) as T
             StatsViewModel::class.java -> StatsViewModel(repository) as T
-            SettingsViewModel::class.java -> SettingsViewModel(repository) as T
+            SettingsViewModel::class.java ->
+                SettingsViewModel(repository, cloudBackupService, cloudPrefs) as T
             else -> throw IllegalArgumentException("Unknown ViewModel class: $modelClass")
         }
     }
