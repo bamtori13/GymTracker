@@ -30,8 +30,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.gymtracker.app.data.local.AppDatabase
-import com.gymtracker.app.data.repository.WorkoutRepository
+import com.gymtracker.app.di.ServiceLocator
 import com.gymtracker.app.ui.ViewModelFactory
 import com.gymtracker.app.ui.calendar.CalendarScreen
 import com.gymtracker.app.ui.calendar.CalendarViewModel
@@ -43,16 +42,25 @@ import com.gymtracker.app.ui.stats.StatsViewModel
 import com.gymtracker.app.ui.theme.GymTrackerTheme
 import com.gymtracker.app.ui.today.TodayScreen
 import com.gymtracker.app.ui.today.TodayViewModel
+import com.gymtracker.app.work.BackupScheduler
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val db = AppDatabase.getInstance(applicationContext)
-        val repository = WorkoutRepository(db)
-        val factory = ViewModelFactory(repository)
+        // Worker와 같은 인스턴스를 쓰도록 ServiceLocator를 거친다.
+        val repository = ServiceLocator.repository(applicationContext)
+        val factory = ViewModelFactory(
+            repository = repository,
+            cloudBackupService = ServiceLocator.cloudBackupService(),
+            cloudPrefs = ServiceLocator.prefs(applicationContext)
+        )
 
         lifecycleScope.launch { repository.seedDefaultExercisesIfNeeded() }
+        // 자동 백업이 켜져 있으면 예약을 되살린다(이미 예약돼 있으면 그대로 둔다).
+        BackupScheduler.ensureScheduled(applicationContext)
+
+
 
         setContent {
             GymTrackerTheme {
