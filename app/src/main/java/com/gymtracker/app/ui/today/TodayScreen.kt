@@ -366,7 +366,7 @@ private fun ExerciseCard(
     }
     var showRemoveConfirm by remember { mutableStateOf(false) }
     val isTime = card.exercise.inputType == ExerciseInputType.TIME
-    val unit = if (isTime) "초" else "kg"
+    val unit = if (isTime) "분" else "kg"
 
     ElevatedCard(modifier = modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp)) {
@@ -407,7 +407,7 @@ private fun ExerciseCard(
                 Spacer(Modifier.height(8.dp))
                 Row(Modifier.fillMaxWidth()) {
                     Text("", modifier = Modifier.width(24.dp))
-                    // 시간 기반(유산소/플랭크)은 앞칸이 "강도"(속도·레벨·경사), 뒷칸이 "시간(초)".
+                    // 시간 기반(유산소/플랭크)은 앞칸이 "강도"(속도·레벨·경사), 뒷칸이 "시간(분)".
                     Text(
                         if (isTime) "강도" else "중량(kg)",
                         modifier = Modifier.weight(1f),
@@ -415,7 +415,7 @@ private fun ExerciseCard(
                         textAlign = TextAlign.Center
                     )
                     Text(
-                        if (isTime) "시간(초)" else "횟수",
+                        if (isTime) "시간(분)" else "횟수",
                         modifier = Modifier.weight(1f),
                         style = MaterialTheme.typography.labelMedium,
                         textAlign = TextAlign.Center
@@ -553,13 +553,13 @@ private fun RowDivider() {
 /** 중량 −/+ 버튼 한 번에 움직이는 양(kg). 여기 숫자만 바꾸면 조절 폭이 바뀐다. */
 private const val WEIGHT_STEP = 2.5
 
-/** 시간(초) −/+ 버튼 한 번에 움직이는 양. 횟수는 항상 1씩. */
-private const val TIME_STEP = 5
+/** 시간(분) −/+ 버튼 한 번에 움직이는 양. 횟수는 항상 1씩. */
+private const val TIME_STEP = 1
 
 /** 유산소 강도(속도/레벨) −/+ 버튼 한 번에 움직이는 양. */
 private const val INTENSITY_STEP = 0.5
 
-/** 7) inputType이 TIME이면 중량 칸을 감추고 "시간(초)" 한 칸만 보여준다.
+/** 7) inputType이 TIME이면 중량 칸을 감추고 "시간(분)" 한 칸만 보여준다.
  *  6) 중량/횟수 입력칸은 숫자만 입력되도록 필터링한다.
  *  4) OutlinedTextField 기본 padding(top/bottom 각 8dp)보다 좁은 CompactNumberField를 사용해
  *     오늘 화면 입력칸의 상하 여백을 1dp씩 더 줄인다. */
@@ -628,7 +628,7 @@ private fun SetRow(
 
 /**
  * 숫자 입력칸 + 좌우 −/+ 버튼. onStep의 인자는 방향(-1 또는 +1)이고
- * 실제 증감폭은 부르는 쪽(중량 2.5 / 횟수 1 / 시간 5)에서 정한다.
+ * 실제 증감폭은 부르는 쪽(중량 2.5 / 횟수 1 / 시간 1분)에서 정한다.
  */
 @Composable
 private fun StepperField(

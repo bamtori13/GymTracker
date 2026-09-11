@@ -29,7 +29,8 @@ data class BackupData(
  */
 object BackupCodec {
 
-    const val VERSION = 1
+    /** v2부터 TIME 운동의 reps는 분 단위다. */
+    const val VERSION = 2
 
     fun encode(data: BackupData): String {
         val root = JSONObject()
@@ -46,13 +47,36 @@ object BackupCodec {
 
     fun decode(json: String): BackupData {
         val root = JSONObject(json)
+        val version = root.optInt("version", 1)
+        val exercises = root.mapArray("exercises", ::jsonToExercise)
+        val timeExerciseIds = exercises
+            .filter { it.inputType == ExerciseInputType.TIME }
+            .map { it.id }
+            .toSet()
+        val sets = root.mapArray("sets", ::jsonToSet).map { set ->
+            // v1 백업의 TIME 값은 초였다. 분 정수로 옮길 때 기록이 줄지 않게 올림한다.
+            if (version < 2 && set.exerciseId in timeExerciseIds) {
+                set.copy(reps = (set.reps + 59) / 60)
+            } else {
+                set
+            }
+        }
         return BackupData(
-            exercises = root.mapArray("exercises", ::jsonToExercise),
+            exercises = exercises.map { exercise ->
+                if (version < 2 && exercise.inputType == ExerciseInputType.TIME) {
+                    exercise.copy(
+                        minReps = (exercise.minReps + 59) / 60,
+                        maxReps = (exercise.maxReps + 59) / 60
+                    )
+                } else {
+                    exercise
+                }
+            },
             routines = root.mapArray("routines", ::jsonToRoutine),
             routineExercises = root.mapArray("routineExercises", ::jsonToRoutineExercise),
             sessions = root.mapArray("sessions", ::jsonToSession),
             sessionExercises = root.mapArray("sessionExercises", ::jsonToSessionExercise),
-            sets = root.mapArray("sets", ::jsonToSet),
+            sets = sets,
             // version 1 백업에는 없던 항목이므로 없으면 빈 목록.
             periodDays = root.mapArray("periodDays", ::jsonToPeriodDay)
         )
